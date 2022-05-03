@@ -118,8 +118,25 @@ class SelfSupervisedPumpDataset(PumpDataset):
             new_chunks[j] = new_chunk / new_chunk.mean(axis=-1)
 
 
-        # normalize chunks
-        #new_chunks[]
+        # TODO: Randomly sample series start time, get chunks, add to check set
+        """
+        # Also augment by getting random chunks
+            random_sets = 6  # changed from 3 to 10 for only Day 1 data; improved acc from 50% to 100%
+            for j in range(random_sets * num_chunks):
+                start_ind = np.random.randint(0, duration_ind - chunk_length)
+                new_chunk = single_user[np.newaxis, start_ind:start_ind + chunk_length, 2:4]
+                new_chunk[0, :, 0] = new_chunk[0, :, 0] - np.mean(
+                    new_chunk[0, :, 0])  # Normalizing each chunk to have a mean of 0
+
+                # this loop removes any chunks with large (>65 degree) jumps
+                for k in range(new_chunk.shape[0]):
+                    #           counter_chunks += 1
+                    if max(new_chunk[k, :, 0]) - min(new_chunk[k, :, 0]) < 65:
+                        #             counter_recorded += 1
+                        #             big_jump.append(new_chunk[k, :, 0]) # each chunk, all the angle data
+                        new_chunks = np.vstack((new_chunks, new_chunk))
+        
+        """
 
         return new_chunks
 
