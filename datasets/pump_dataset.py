@@ -91,25 +91,54 @@ class PumpDataset(Dataset):
 class SelfSupervisedPumpDataset(PumpDataset):
     """Pump dataset."""
 
-    def __init__(self, drill_data, label_data, transform=None):
+    def __init__(self, drill_data: str, label_data: str, transform=None, chunk_length: int = 16):
         super(SelfSupervisedPumpDataset, self).__init__(
             drill_data,
             label_data,
             transform
         )
+        self.chunk_length = chunk_length
 
-    def _get_chunks(self, signal):
-        pass
+    @staticmethod
+    def get_chunks(signal, chunk_length):
+
+        # TODO:
+        #if len_user <= chunk_length:  # skip users whose total lengths are less than the chunk length
+        #    continue  # go to the next iteration
+
+        duration_ind, n_channels = signal.shape
+
+        num_chunks = duration_ind // chunk_length  # Starting from beginning of array, get chunks of size chunk_length
+
+        # Create and combine chunks
+        #new_chunks = np.zeros([1, chunk_length, 2], dtype=float)  # initialize array for concatenation in the loop
+        new_chunks = np.zeros((num_chunks, chunk_length, 3), dtype=float)
+        for j in range(num_chunks):
+            new_chunk = signal[np.newaxis, 0 + j * chunk_length:chunk_length + j * chunk_length, :]
+            new_chunks[j] = new_chunk / new_chunk.mean(axis=-1)
+
+
+        # normalize chunks
+        #new_chunks[]
+
+        return new_chunks
+
+
+
+
 
     def __getitem__(self, idx):
         signal, label = PumpDataset.__getitem__(self, idx)
-        signal = self._get_chunks(signal)
+        signal = self.get_chunks(signal, self.chunk_length)
 
         return signal, label
 
 
 if __name__ == "__main__":
-    pump_dataset = PumpDataset(drill_data='../data/2022-03-01_to_2022-03-03/sensor-data.csv',
+    """pump_dataset = PumpDataset(drill_data='../data/2022-03-01_to_2022-03-03/sensor-data.csv',
+                               label_data='../data/2022-03-01_to_2022-03-03/label-data.csv')"""
+
+    pump_dataset = SelfSupervisedPumpDataset(drill_data='../data/2022-03-01_to_2022-03-03/sensor-data.csv',
                                label_data='../data/2022-03-01_to_2022-03-03/label-data.csv')
 
     for i in range(len(pump_dataset)):
