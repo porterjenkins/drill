@@ -91,16 +91,25 @@ class PumpDataset(Dataset):
 class SelfSupervisedPumpDataset(PumpDataset):
     """Pump dataset."""
 
-    def __init__(self, drill_data: str, label_data: str, transform=None, chunk_length: int = 16):
+    def __init__(
+            self,
+            drill_data: str,
+            label_data: str,
+            transform=None,
+            chunk_length: int = 16,
+            rand_chunk_rate: float = 0.2
+    ):
+
         super(SelfSupervisedPumpDataset, self).__init__(
             drill_data,
             label_data,
             transform
         )
         self.chunk_length = chunk_length
+        self.rand_chunk_rate = rand_chunk_rate
 
     @staticmethod
-    def get_chunks(signal, chunk_length):
+    def get_chunks(signal, chunk_length, rand_pct=0.1):
 
         # TODO:
         #if len_user <= chunk_length:  # skip users whose total lengths are less than the chunk length
@@ -115,53 +124,59 @@ class SelfSupervisedPumpDataset(PumpDataset):
         new_chunks = np.zeros((num_chunks, chunk_length, 3), dtype=float)
         for j in range(num_chunks):
             new_chunk = signal[np.newaxis, 0 + j * chunk_length:chunk_length + j * chunk_length, :]
-            new_chunks[j] = new_chunk / new_chunk.mean(axis=-1)
+            new_chunks[j] = new_chunk / new_chunk.mean(axis=-1, keepdims=True)
 
 
-        # TODO: Randomly sample series start time, get chunks, add to check set
-        """
+
         # Also augment by getting random chunks
-            random_sets = 6  # changed from 3 to 10 for only Day 1 data; improved acc from 50% to 100%
-            for j in range(random_sets * num_chunks):
-                start_ind = np.random.randint(0, duration_ind - chunk_length)
-                new_chunk = single_user[np.newaxis, start_ind:start_ind + chunk_length, 2:4]
-                new_chunk[0, :, 0] = new_chunk[0, :, 0] - np.mean(
-                    new_chunk[0, :, 0])  # Normalizing each chunk to have a mean of 0
+        num_rand_chunks = int(rand_pct*num_chunks)  # changed from 3 to 10 for only Day 1 data; improved acc from 50% to 100%
+        rand_chunks = np.zeros((num_rand_chunks, chunk_length, 3), dtype=float)
+        for j in range(num_rand_chunks):
+            start_ind = np.random.randint(0, duration_ind - chunk_length)
+            new_chunk = signal[np.newaxis, start_ind:(start_ind + chunk_length), : ]
+            rand_chunks[j] = new_chunk - new_chunk.mean(axis=-1, keepdims=True)  # Normalizing each chunk to have a mean of 0
 
-                # this loop removes any chunks with large (>65 degree) jumps
-                for k in range(new_chunk.shape[0]):
-                    #           counter_chunks += 1
-                    if max(new_chunk[k, :, 0]) - min(new_chunk[k, :, 0]) < 65:
-                        #             counter_recorded += 1
-                        #             big_jump.append(new_chunk[k, :, 0]) # each chunk, all the angle data
-                        new_chunks = np.vstack((new_chunks, new_chunk))
-        
-        """
+            # this loop removes any chunks with large (>65 degree) jumps
+            """for k in range(new_chunk.shape[0]):
+                #           counter_chunks += 1
+                if max(new_chunk[k, :, 0]) - min(new_chunk[k, :, 0]) < 65:
+                    #             counter_recorded += 1
+                    #             big_jump.append(new_chunk[k, :, 0]) # each chunk, all the angle data
+                    new_chunks = np.vstack((new_chunks, new_chunk))"""
 
-        return new_chunks
-
-
+        return new_chunks, num_chunks, rand_chunks
 
 
 
     def __getitem__(self, idx):
         signal, label = PumpDataset.__getitem__(self, idx)
-        signal = self.get_chunks(signal, self.chunk_length)
+        signal, n_chunks, rand = self.get_chunks(signal, self.chunk_length, self.rand_chunk_rate)
+        label = np.repeat(label, n_chunks)
 
-        return signal, label
+        # TODO: add time differencing, concat tensors
+
+        return signal, rand, label
 
 
 if __name__ == "__main__":
     """pump_dataset = PumpDataset(drill_data='../data/2022-03-01_to_2022-03-03/sensor-data.csv',
                                label_data='../data/2022-03-01_to_2022-03-03/label-data.csv')"""
 
-    pump_dataset = SelfSupervisedPumpDataset(drill_data='../data/2022-03-01_to_2022-03-03/sensor-data.csv',
-                               label_data='../data/2022-03-01_to_2022-03-03/label-data.csv')
+    pump_dataset = SelfSupervisedPumpDataset(
+        drill_data='../data/2022-03-01_to_2022-03-03/sensor-data.csv',
+        label_data='../data/2022-03-01_to_2022-03-03/label-data.csv',
+        chunk_length=100,
+        rand_chunk_rate=0.1
+    )
 
-    for i in range(len(pump_dataset)):
-        x, y = pump_dataset[i]
-
-
-        if i == 3:
+    from tqdm import tqdm
+    for i in tqdm(range(len(pump_dataset))):
+        x, rand, y = pump_dataset[i]
+        print(x.shape)
+        if i == 0:
+            #plt.plot(x.reshape(-1, 3), alpha=0.5)
+            #plt.show()
+            for j in range(rand.shape[0]):
+                plt.plot(rand[j,:, 0], linestyle='--')
             plt.show()
             break
