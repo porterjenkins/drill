@@ -26,6 +26,12 @@ class SeqTransformer(nn.Module):
         self.cls_token = nn.Embedding(1, dim)
 
     def forward(self, seq: torch.Tensor,  mask: Optional[torch.Tensor] = None):
+        """
+
+        :param seq: (torch.Tensor: float64) dims (bs, chunks, channels, chunk_size)
+        :param mask: torch.Tensor: int64): dims (bs, chunks)
+        :return:
+        """
         if mask is not None:
             h_mask = self.mask_token(torch.zeros(1).long())
             mask_idx = torch.where(mask)

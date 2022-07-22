@@ -155,6 +155,9 @@ class SelfSupervisedPumpDataset(PumpDataset):
 
         # TODO: add time differencing, concat tensors
 
+        signal = torch.Tensor(signal).float()
+        rand = torch.Tensor(rand).float()
+
         return signal, rand, label
 
 
@@ -165,8 +168,8 @@ if __name__ == "__main__":
     pump_dataset = SelfSupervisedPumpDataset(
         drill_data='../data/2022-03-01_to_2022-03-03/sensor-data.csv',
         label_data='../data/2022-03-01_to_2022-03-03/label-data.csv',
-        chunk_length=100,
-        rand_chunk_rate=0.1
+        chunk_length=32,
+        rand_chunk_rate=0.0
     )
 
     from tqdm import tqdm
