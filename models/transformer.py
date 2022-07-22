@@ -2,6 +2,7 @@ import torch
 from torch import nn
 
 from collections import OrderedDict
+from typing import Optional
 
 
 class TransformerMlp(nn.Module):
@@ -57,7 +58,7 @@ class Transformer(nn.Module):
                     attn_heads: int,
                     dropout_prob: float,
                     n_enc_blocks: int,
-                    use_global: bool
+
     ):
         """
 
@@ -65,7 +66,6 @@ class Transformer(nn.Module):
         @param attn_heads: number of multi-head attention units
         @param dropout_prob: dropout probability
         @param n_enc_blocks: number of stacked encoder blocks
-        @param use_global: flag to get global embedding
 
         """
         super(Transformer, self).__init__()
@@ -73,10 +73,7 @@ class Transformer(nn.Module):
 
         self.encoder = self._build_encoders(n_enc_blocks, dim, dropout_prob, attn_heads)
         self.dropout = nn.Dropout(dropout_prob)
-        self.use_global = use_global
-        if self.use_global:
-            self.h_global = torch.nn.Parameter(torch.rand(1, dim))
-            self.register_parameter(name='global', param=self.h_global)
+
 
     def _build_encoders(self, n_enc_blocks, dim, dropout_prob, attn_heads):
         """
@@ -101,10 +98,10 @@ class Transformer(nn.Module):
         @param x: (batch size, n objects, embedding dim)
         @return:
         """
-        if self.use_global:
+        """if self.use_global:
             h_global = self.h_global.expand(x.shape[0], x.shape[-1])
             h_global = h_global.unsqueeze(1)
-            x = torch.cat([h_global, x], dim=1)
+            x = torch.cat([h_global, x], dim=1)"""
         x = x.transpose(0, 1)
         # needs (sequence length, batch size, embedding dimension)
         h = self.encoder(x)
