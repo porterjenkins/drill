@@ -1,0 +1,12 @@
+meta:
+  feat_size: 512
+  seq_len: 32
+encoder:
+  n_channels: 3
+transformer:
+  attn_heads: 4
+  n_encoder_blocks: 1
+  dropout: 0.0
+regressor:
+  reg_layers: [256, 128]
+  dropout: 0.0

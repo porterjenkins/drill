@@ -45,23 +45,25 @@ class SeqTransformer(nn.Module):
 
 
 
-def build():
+def build(cfg: dict):
+
+    output_dim = cfg["encoder"]["n_channels"]*cfg["meta"]["seq_len"]
 
     encoder = ConvEncoderNetwork(
-        n_channels=3,
-        feat_size=512,
+        n_channels=cfg["encoder"]["n_channels"],
+        feat_size=cfg["meta"]["feat_size"],
     )
     transformer = Transformer(
-        dim=512,
-        attn_heads=4,
-        n_enc_blocks=1,
-        dropout_prob=0.0,
+        dim=cfg["meta"]["feat_size"],
+        attn_heads=cfg["transformer"]["attn_heads"],
+        n_enc_blocks=cfg["transformer"]["n_encoder_blocks"],
+        dropout_prob=cfg["transformer"]["dropout"],
     )
     head = RegressorHead(
-        input_size=512,
-        reg_layers=[256, 128],
-        n_classes=32*3,
-        dropout_prob=0.0
+        input_size=cfg["meta"]["feat_size"],
+        reg_layers=cfg["regressor"]["reg_layers"],
+        n_classes=output_dim,
+        dropout_prob=cfg["regressor"]["dropout"]
     )
 
     model = SeqTransformer(
@@ -80,15 +82,15 @@ def get_masked_tensor(mask, src):
 
 
 if __name__ == "__main__":
-    from utils import get_n_params
+    from utils import get_n_params, get_yaml_cfg
     bs = 4
     chunks = 12
     chunk_size = 32
     channels = 3
     x = torch.randn(bs, chunks, channels, chunk_size)
     mask = torch.randint(0, 2, size=(4, 12))
-
-    model = build()
+    cfg = get_yaml_cfg("../models/cfg_seq_transformer.yaml")
+    model = build(cfg)
     y = model(x, mask=mask)
 
     y_for_loss = get_masked_tensor(mask, x.flatten(2))
