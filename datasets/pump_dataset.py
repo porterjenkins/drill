@@ -158,6 +158,38 @@ class SelfSupervisedPumpDataset(PumpDataset):
         return new_chunks, num_chunks, rand_chunks
 
 
+    @staticmethod
+    def plot_batch(x, y, mask):
+
+        start_idx = 0
+        chunk_size = x.shape[1]
+
+        fig, axs = plt.subplots(3)
+
+        for j in range(x.shape[0]):
+            chunk_color = np.random.rand(3, )
+            is_mask = bool(mask[j])
+            for k in range(3):
+                if is_mask:
+                    style = (0, (1, 10))
+                    c = 'gray'
+                else:
+                    c = chunk_color
+                    style = "dotted"
+
+                axs[k].plot(
+                    np.arange(start_idx, start_idx + chunk_size),
+                    x[j, :, k],
+                    linestyle=style,
+                    c=c,
+                    alpha=0.5
+                )
+
+            start_idx += chunk_size
+        return fig
+
+
+
 
     def __getitem__(self, idx):
         signal, label = PumpDataset.__getitem__(self, idx)
@@ -192,15 +224,11 @@ if __name__ == "__main__":
     for i in tqdm(range(len(pump_dataset))):
         x, rand, mask, y = pump_dataset[i]
         print(x.shape)
-        if i == 2:
-            for j in range(x.shape[0]):
-                c = np.random.rand(3,)
-                for k in range(3):
-                    plt.plot(x[j, k, :], linestyle='--', c=c)
+        if i == 0:
+
+            plt.plot(x.reshape(-1, 3), alpha=0.5)
             plt.show()
-            #plt.plot(x.reshape(-1, 3), alpha=0.5)
-            #plt.show()
             #for j in range(rand.shape[0]):
             #    plt.plot(rand[j,:, 0], linestyle='--')
-            plt.show()
+
             break
