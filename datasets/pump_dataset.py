@@ -194,7 +194,7 @@ class SelfSupervisedPumpDataset(PumpDataset):
     def __getitem__(self, idx):
         signal, label = PumpDataset.__getitem__(self, idx)
         signal, n_chunks, rand = self.get_chunks(signal, self.chunk_length, self.rand_chunk_rate)
-        label = np.repeat(label, n_chunks)
+        label = torch.Tensor(np.repeat(label, n_chunks))
 
         # TODO: concat tensors
         signal = torch.Tensor(signal).float()
@@ -203,7 +203,7 @@ class SelfSupervisedPumpDataset(PumpDataset):
         # generate mask tokens
         mask = torch.Tensor(np.random.binomial(1, p=self.mask_prob, size=n_chunks)).long()
 
-        return signal, rand, mask, label
+        return {"signal": signal, "mask": mask}, label
 
 
 if __name__ == "__main__":
@@ -222,11 +222,10 @@ if __name__ == "__main__":
 
     from tqdm import tqdm
     for i in tqdm(range(len(pump_dataset))):
-        x, rand, mask, y = pump_dataset[i]
-        print(x.shape)
+        x, y = pump_dataset[i]
         if i == 0:
-
-            plt.plot(x.reshape(-1, 3), alpha=0.5)
+            signal = x['signal']
+            plt.plot(signal.reshape(-1, 3), alpha=0.5)
             plt.show()
             #for j in range(rand.shape[0]):
             #    plt.plot(rand[j,:, 0], linestyle='--')
