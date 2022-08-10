@@ -30,10 +30,18 @@ def train(trn_cfg_path: str, model_cfg_path: str):
 
     for i in range(trn_cfg["optimization"]["n_epochs"]):
         print(f"\nStarting epoch {i+1}/{trn_cfg['optimization']['n_epochs']}\n")
+
+        j = 0
         for inputs, aug, mask, cls in tqdm(trn_loader, total=len(trn_data)):
+
+            if i == 0 and j == 0:
+                plot = trn_data.plot_batch(inputs, cls, mask)
+
             # need [batch size, chunks, channels, chunk size]
             inputs = torch.permute(inputs,[0, 1, 3, 2])
             y = model(inputs)
+
+            j += 1
 
 
 if __name__ == "__main__":
