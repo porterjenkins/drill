@@ -159,16 +159,20 @@ class SelfSupervisedPumpDataset(PumpDataset):
 
 
     @staticmethod
-    def plot_batch(x, y, mask):
+    def plot_batch(x, y, mask, drop_zero=False, figsize=(12, 6)):
+
+        if isinstance(x, torch.Tensor):
+            x = x.data.numpy()
 
         start_idx = 0
         chunk_size = x.shape[1]
 
-        fig, axs = plt.subplots(3)
+        fig, axs = plt.subplots(3, figsize=figsize)
 
         for j in range(x.shape[0]):
             chunk_color = np.random.rand(3, )
             is_mask = bool(mask[j])
+            signal = x[j, :, :]
             for k in range(3):
                 if is_mask:
                     style = (0, (1, 10))
@@ -177,9 +181,17 @@ class SelfSupervisedPumpDataset(PumpDataset):
                     c = chunk_color
                     style = "dotted"
 
+                if drop_zero:
+                    drop_idx = np.where(
+                        (signal[:, 0] == 0.0) & (signal[:, 1] == 0.0) & (signal[:, 2] == 0.0)
+                    )[0]
+                    if len(drop_idx) > 0:
+                        #signal = signal[~drop_idx]
+                        break
+
                 axs[k].plot(
                     np.arange(start_idx, start_idx + chunk_size),
-                    x[j, :, k],
+                    signal[:, k],
                     linestyle=style,
                     c=c,
                     alpha=0.5

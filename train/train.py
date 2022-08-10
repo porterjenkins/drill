@@ -1,6 +1,7 @@
 import argparse
 from tqdm import tqdm
 from torch.utils.data import DataLoader
+import wandb
 import torch
 
 from datasets.pump_dataset import SelfSupervisedPumpDataset
@@ -10,9 +11,19 @@ from utils import get_yaml_cfg
 
 
 
+
 def train(trn_cfg_path: str, model_cfg_path: str):
     trn_cfg = get_yaml_cfg(trn_cfg_path)
     model_cfg = get_yaml_cfg(model_cfg_path)
+
+    run = wandb.init(
+        project=trn_cfg["wandb"]["project"],
+        entity=trn_cfg["wandb"]["entity"],
+        group=trn_cfg["wandb"]["group"],
+        job_type='TRAIN',
+        name=trn_cfg["wandb"]["name"],
+        config=trn_cfg
+    )
 
     model = build(model_cfg)
 
@@ -39,7 +50,8 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             mask = x["mask"]
             if i == 0 and j == 0:
                 for k in range(signal.shape[0]):
-                    plot = trn_data.plot_batch(signal[k], y[k], mask[k])
+                    plot = trn_data.plot_batch(signal[k], y[k], mask[k], drop_zero=True)
+                    run.log({"signal": wandb.Image(plot)})
 
 
             # need [batch size, chunks, channels, chunk size]

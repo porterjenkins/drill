@@ -1,4 +1,8 @@
-wandb: null
+wandb:
+  entity: prj-research
+  project: sequence-transformer
+  group: pretraining
+  name: they-come-from-uranus # can name wandb run
 dataset:
   ctrl_file: "/home/porter/code/drill/Preprocessing/key_train.csv"
   data_dir: '/home/porter/code/drill/Preprocessing/Segments/'
