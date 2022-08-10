@@ -1,4 +1,5 @@
 import argparse
+from tqdm import tqdm
 from torch.utils.data import DataLoader
 import torch
 
@@ -15,10 +16,11 @@ def train(trn_cfg_path: str, model_cfg_path: str):
     model = build(model_cfg)
 
     trn_data = SelfSupervisedPumpDataset(
-        drill_data='../data/2022-03-01_to_2022-03-03/sensor-data.csv',
-        label_data='../data/2022-03-01_to_2022-03-03/label-data.csv',
-        chunk_length=32,
-        rand_chunk_rate=0.0
+        ctrl_fpath=trn_cfg["dataset"]["ctrl_file"],
+        data_dir=trn_cfg["dataset"]["data_dir"],
+        chunk_length=model_cfg["meta"]["seq_len"],
+        rand_chunk_rate=trn_cfg["dataset"]["rand_chunk_prob"],
+        mask_prob=model_cfg["meta"]["mask_prob"]
     )
     trn_loader = DataLoader(
         trn_data,
@@ -27,7 +29,9 @@ def train(trn_cfg_path: str, model_cfg_path: str):
     )
 
     for i in range(trn_cfg["optimization"]["n_epochs"]):
-        for inputs, aug, targets in trn_loader:
+        print(f"\nStarting epoch {i+1}/{trn_cfg['optimization']['n_epochs']}\n")
+        for inputs, aug, mask, cls in tqdm(trn_loader, total=len(trn_data)):
+            # need [batch size, chunks, channels, chunk size]
             inputs = torch.permute(inputs,[0, 1, 3, 2])
             y = model(inputs)
 

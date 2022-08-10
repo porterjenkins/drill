@@ -1,4 +1,9 @@
+wandb: null
+dataset:
+  ctrl_file: "/home/porter/code/drill/Preprocessing/key_train.csv"
+  data_dir: '/home/porter/code/drill/Preprocessing/Segments/'
+  rand_chunk_prob: 0.0
 optimization:
   n_epochs: 5
   lr: 1e-4
-  batch_size: 1
+  batch_size: 4
