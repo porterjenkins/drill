@@ -106,6 +106,7 @@ class SelfSupervisedPumpDataset(PumpDataset):
             data_dir: str,
             chunk_length: int = 16,
             rand_chunk_rate: float = 0.2,
+            mask_prob: float = 0.15,
             transform: Optional[Callable] = None
     ):
 
@@ -116,6 +117,7 @@ class SelfSupervisedPumpDataset(PumpDataset):
         )
         self.chunk_length = chunk_length
         self.rand_chunk_rate = rand_chunk_rate
+        self.mask_prob = mask_prob
 
     @staticmethod
     def get_chunks(signal, chunk_length, rand_pct=0.1):
@@ -162,12 +164,14 @@ class SelfSupervisedPumpDataset(PumpDataset):
         signal, n_chunks, rand = self.get_chunks(signal, self.chunk_length, self.rand_chunk_rate)
         label = np.repeat(label, n_chunks)
 
-        # TODO: add time differencing, concat tensors
-
+        # TODO: concat tensors
         signal = torch.Tensor(signal).float()
         rand = torch.Tensor(rand).float()
 
-        return signal, rand, label
+        # generate mask tokens
+        mask = torch.Tensor(np.random.binomial(1, p=self.mask_prob, size=n_chunks)).long()
+
+        return signal, rand, mask, label
 
 
 if __name__ == "__main__":
@@ -180,16 +184,22 @@ if __name__ == "__main__":
         ctrl_fpath="/home/porter/code/drill/Preprocessing/key_train.csv",
         data_dir='/home/porter/code/drill/Preprocessing/Segments/',
         chunk_length=32,
-        rand_chunk_rate=0.0
+        rand_chunk_rate=0.1,
+        mask_prob=0.15
     )
 
     from tqdm import tqdm
     for i in tqdm(range(len(pump_dataset))):
-        x, _, y = pump_dataset[i]
+        x, rand, mask, y = pump_dataset[i]
         print(x.shape)
         if i == 2:
-            plt.plot(x.reshape(-1, 3), alpha=0.5)
+            for j in range(x.shape[0]):
+                c = np.random.rand(3,)
+                for k in range(3):
+                    plt.plot(x[j, k, :], linestyle='--', c=c)
             plt.show()
+            #plt.plot(x.reshape(-1, 3), alpha=0.5)
+            #plt.show()
             #for j in range(rand.shape[0]):
             #    plt.plot(rand[j,:, 0], linestyle='--')
             plt.show()
