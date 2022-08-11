@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-
+import pdb
 
 class ConvEncoderNetwork(nn.Module):
     def __init__(self, n_channels: int, feat_size: int):
@@ -58,7 +58,6 @@ class ConvEncoderNetwork(nn.Module):
         #h = self.maxpool(h)
         h = h.flatten(start_dim=1)
         h = self.relu(self.linear(h))
-
         return h.view(bs, n, -1)
 
 

@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
+import pdb
 
 
 def angles(raw_hall):
@@ -157,6 +158,8 @@ class SelfSupervisedPumpDataset(PumpDataset):
 
         signal = torch.Tensor(signal).float()
         rand = torch.Tensor(rand).float()
+
+        pdb.set_trace()
 
         return signal, rand, label
 

@@ -1,10 +1,9 @@
 import torch
 import torch.nn as nn
-
-from models.transformer import Transformer
-from models.convnet import ConvEncoderNetwork
-from models.regressor import RegressorHead
-
+from transformer import Transformer
+from convnet import ConvEncoderNetwork
+from regressor import RegressorHead
+import numpy as np
 from typing import Optional
 
 class SeqTransformer(nn.Module):
@@ -39,6 +38,8 @@ class SeqTransformer(nn.Module):
         # CNN encoding
         h = self.encoder(seq)
 
+        pos = calc_encoded_positions(h.shape[0], h.shape[1], h.shape[2])
+        h = h + pos
         # append cls token
         bs = seq.shape[0]
         cls = self.cls_token(torch.zeros(bs).long())
@@ -47,9 +48,6 @@ class SeqTransformer(nn.Module):
         h = self.transformer(h)
         output = self.head(h)
         return output
-
-
-
 
 def build(cfg: dict):
 
@@ -86,23 +84,42 @@ def get_masked_tensor(mask, src):
     output = src[idx[0], idx[1]]
     return output
 
+def calc_encoded_positions(bs,chunks, channels):
+    """
+    :param bs: batch size
+    :param chunks: number of chunks
+    :return:
+    """
+    # create empty tensor to be filled with encoded positions
+    pe = torch.zeros(chunks, channels)
+    # populate tensor with encoded positions
+    for pos in range(chunks):
+        for i in range(0, channels, 2):
+            pe[pos, i] = np.sin(pos / (10000 ** ((2 * i)/channels)))
+            pe[pos, i + 1] = np.cos(pos / (10000 ** ((2 * (i + 1))/channels)))
+
+    # convert tensor to shape of h (bs, chunks, channels) and return
+    return pe.unsqueeze(0).expand(bs, chunks, channels)
+
 
 if __name__ == "__main__":
-    from utils import get_n_params, get_yaml_cfg
+    # from utils import get_n_params, get_yaml_cfg
     bs = 4
     chunks = 12
     chunk_size = 32
     channels = 3
+    # following 2 lines are dataloaded
     x = torch.randn(bs, chunks, channels, chunk_size)
+
     mask = torch.randint(0, 2, size=(4, 12))
     cfg = get_yaml_cfg("../models/cfg_seq_transformer.yaml")
     model = build(cfg)
     y = model(x, mask=mask)
 
+
+    #use the following 3 lines as loss
     y_for_loss = get_masked_tensor(mask, x.flatten(2))
     y_hat_for_loss = get_masked_tensor(mask, y[:, 1:, :])
-
-
     d = torch.norm(y_for_loss - y_hat_for_loss, p=2)
     print(d)
 
