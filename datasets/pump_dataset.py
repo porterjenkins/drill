@@ -1,36 +1,30 @@
 import numpy as np
 import pandas as pd
+import os
 import matplotlib.pyplot as plt
+
+from typing import Callable, Optional
+
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
-import pdb
 
-
-def angles(raw_hall):
-  adj_hall = np.where(raw_hall[:,2] < h32, raw_hall[:,2], np.where(raw_hall[:,2] < h21, raw_hall[:,1]+h32b, raw_hall[:,0]+h21b))
-  return poly(adj_hall)
 
 
 class PumpDataset(Dataset):
     """Pump dataset."""
 
-    def __init__(self, drill_data, label_data, transform=None):
+    def __init__(self, ctrl_fpath: str, data_dir: str, transform=None):
         """
-        Args:
-            drill_data (string): Path to the csv file with raw sensor data.
-                schema:
-                 - timestamp, ms elapsed, sensor, sensor, sensor
-            label_data (string): Path to the csv file with labels for the sensor data.
-                schema:
-                -  User#, Label, Start time, End time
-            transform (callable, optional): Optional transform to be applied
-                on a sample.
+
+        :param ctrl_fpath: filepath to control file
+        :param data_dir: data directory of segment files
+        :param transform: (callable, optional): Optional transform to be applied on a sample.
         """
-        self.drill_data = pd.read_csv(drill_data, header=None).values
-        df = pd.read_csv(label_data)
-        df = df.replace(['C', 'W', 'M'], [1, 2, 3])
-        self.label_data = df.to_numpy()
+        self.data_dir = data_dir
+        ctrl_file = pd.read_csv(ctrl_fpath, header=None)
+        self.examples = ctrl_file[0].values
+        self.label_data = ctrl_file[1].values
         self.transform = transform
 
     def get_label(self, label):
@@ -67,17 +61,33 @@ class PumpDataset(Dataset):
     def __len__(self):
         return len(self.label_data)
 
-    def __getitem__(self, idx):
-        if torch.is_tensor(idx):
-            idx = idx.tolist()
+    def __getitem__(self, idx: int):
 
-        start_time = self.label_data[idx, 9]
-        end_time = self.label_data[idx, 10]
-        sensor_data = self.drill_data[
-            np.where((self.drill_data[:, 0] > start_time) * (self.drill_data[:, 0] < end_time))]
-        signal = sensor_data[:, 2:5]
+        #start_time = self.label_data[idx, 9]
+        #end_time = self.label_data[idx, 10]
+        #sensor_data = self.drill_data[
+        #    np.where((self.drill_data[:, 0] > start_time) * (self.drill_data[:, 0] < end_time))]
+        #signal = sensor_data[:, 2:5]
         #label = self.get_label(self.label_data[idx, 1])
-        label = self.label_data[idx, 5]
+
+
+        example_id = self.examples[idx]
+        example_fpath = os.path.join(self.data_dir, example_id + ".csv")
+        if example_fpath is None:
+            raise FileNotFoundError(f"No segment filepath was found: {example_fpath}")
+
+        signal = pd.read_csv(
+            os.path.join(
+                self.data_dir,
+                example_fpath
+            ),
+            index_col=None,
+            header=None,
+            names=["timestamp", "dt", "h1", "h2", "h3"]
+        )
+        signal = signal[["h1", "h2", "h3"]].values
+
+        label = self.label_data[idx] - 1 # 0 index labels
         sample = {'signal': signal, 'label': label}
 
         if self.transform:
@@ -87,27 +97,27 @@ class PumpDataset(Dataset):
 
 
 
-
-
 class SelfSupervisedPumpDataset(PumpDataset):
     """Pump dataset."""
 
     def __init__(
             self,
-            drill_data: str,
-            label_data: str,
-            transform=None,
+            ctrl_fpath: str,
+            data_dir: str,
             chunk_length: int = 16,
-            rand_chunk_rate: float = 0.2
+            rand_chunk_rate: float = 0.2,
+            mask_prob: float = 0.15,
+            transform: Optional[Callable] = None
     ):
 
         super(SelfSupervisedPumpDataset, self).__init__(
-            drill_data,
-            label_data,
+            ctrl_fpath,
+            data_dir,
             transform
         )
         self.chunk_length = chunk_length
         self.rand_chunk_rate = rand_chunk_rate
+        self.mask_prob = mask_prob
 
     @staticmethod
     def get_chunks(signal, chunk_length, rand_pct=0.1):
@@ -148,41 +158,88 @@ class SelfSupervisedPumpDataset(PumpDataset):
         return new_chunks, num_chunks, rand_chunks
 
 
+    @staticmethod
+    def plot_batch(x, y, mask, drop_zero=False, figsize=(12, 6)):
+
+        if isinstance(x, torch.Tensor):
+            x = x.data.numpy()
+
+        start_idx = 0
+        chunk_size = x.shape[1]
+
+        fig, axs = plt.subplots(3, figsize=figsize)
+
+        for j in range(x.shape[0]):
+            chunk_color = np.random.rand(3, )
+            is_mask = bool(mask[j])
+            signal = x[j, :, :]
+            for k in range(3):
+                if is_mask:
+                    style = (0, (1, 10))
+                    c = 'gray'
+                else:
+                    c = chunk_color
+                    style = "dotted"
+
+                if drop_zero:
+                    drop_idx = np.where(
+                        (signal[:, 0] == 0.0) & (signal[:, 1] == 0.0) & (signal[:, 2] == 0.0)
+                    )[0]
+                    if len(drop_idx) > 0:
+                        #signal = signal[~drop_idx]
+                        break
+
+                axs[k].plot(
+                    np.arange(start_idx, start_idx + chunk_size),
+                    signal[:, k],
+                    linestyle=style,
+                    c=c,
+                    alpha=0.5
+                )
+
+            start_idx += chunk_size
+        return fig
+
+
+
 
     def __getitem__(self, idx):
         signal, label = PumpDataset.__getitem__(self, idx)
         signal, n_chunks, rand = self.get_chunks(signal, self.chunk_length, self.rand_chunk_rate)
-        label = np.repeat(label, n_chunks)
+        label = torch.Tensor(np.repeat(label, n_chunks))
 
-        # TODO: add time differencing, concat tensors
-
+        # TODO: concat tensors
         signal = torch.Tensor(signal).float()
         rand = torch.Tensor(rand).float()
 
-        pdb.set_trace()
+        # generate mask tokens
+        mask = torch.Tensor(np.random.binomial(1, p=self.mask_prob, size=n_chunks)).long()
 
-        return signal, rand, label
+        return {"signal": signal, "mask": mask}, label
 
 
 if __name__ == "__main__":
-    """pump_dataset = PumpDataset(drill_data='../data/2022-03-01_to_2022-03-03/sensor-data.csv',
-                               label_data='../data/2022-03-01_to_2022-03-03/label-data.csv')"""
-
+    """pump_dataset = PumpDataset(
+        ctrl_fpath="/home/porter/code/drill/Preprocessing/key_train.csv",
+        data_dir='/home/porter/code/drill/Preprocessing/Segments/'
+    )
+"""
     pump_dataset = SelfSupervisedPumpDataset(
-        drill_data='../data/2022-03-01_to_2022-03-03/sensor-data.csv',
-        label_data='../data/2022-03-01_to_2022-03-03/label-data.csv',
+        ctrl_fpath="/home/porter/code/drill/Preprocessing/key_train.csv",
+        data_dir='/home/porter/code/drill/Preprocessing/Segments/',
         chunk_length=32,
-        rand_chunk_rate=0.0
+        rand_chunk_rate=0.1,
+        mask_prob=0.15
     )
 
     from tqdm import tqdm
     for i in tqdm(range(len(pump_dataset))):
-        x, rand, y = pump_dataset[i]
-        print(x.shape)
+        x, y = pump_dataset[i]
         if i == 0:
-            #plt.plot(x.reshape(-1, 3), alpha=0.5)
-            #plt.show()
-            for j in range(rand.shape[0]):
-                plt.plot(rand[j,:, 0], linestyle='--')
+            signal = x['signal']
+            plt.plot(signal.reshape(-1, 3), alpha=0.5)
             plt.show()
+            #for j in range(rand.shape[0]):
+            #    plt.plot(rand[j,:, 0], linestyle='--')
+
             break
