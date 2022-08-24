@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
-from transformer import Transformer
-from convnet import ConvEncoderNetwork
-from regressor import RegressorHead
+from models.transformer import Transformer
+from models.convnet import ConvEncoderNetwork
+from models.regressor import RegressorHead
 import numpy as np
 from typing import Optional
 
@@ -42,6 +42,8 @@ class SeqTransformer(nn.Module):
         h = h + pos
         # append cls token
         bs = seq.shape[0]
+
+        #the next two lines add the extra cls token to the end of each sequence (changing the dim from (bs, chunks, channels, chunk_size) to (bs, chunks, channels + 1, chunk_size)
         cls = self.cls_token(torch.zeros(bs).long())
         h = torch.cat([cls.unsqueeze(1), h], dim=1)
 

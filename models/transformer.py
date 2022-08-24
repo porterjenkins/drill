@@ -48,9 +48,6 @@ class EncoderBlock(nn.Module):
         h2 = h2 + h
         return h2
 
-
-
-
 class Transformer(nn.Module):
     def __init__(
                     self,

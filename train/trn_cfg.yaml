@@ -4,8 +4,8 @@ wandb:
   group: pretraining
   name: they-come-from-uranus # can name wandb run
 dataset:
-  ctrl_file: "/home/porter/code/drill/Preprocessing/key_train.csv"
-  data_dir: '/home/porter/code/drill/Preprocessing/Segments/'
+  ctrl_file: '/Users/chasewesthoff/Desktop/PJR/drill/Preprocessing/key_train.csv'
+  data_dir: '/Users/chasewesthoff/Desktop/PJR/drill/Preprocessing/Segments'
   rand_chunk_prob: 0.0
 optimization:
   n_epochs: 5
