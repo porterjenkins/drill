@@ -58,6 +58,25 @@ class PumpDataset(Dataset):
         plt.title("copy pasta regrssion model")
         plt.plot(angles(signal))
 
+
+    @staticmethod
+    def calc_encoded_positions(bs, chunks, channels):
+        """
+        :param bs: batch size
+        :param chunks: number of chunks
+        :return:
+        """
+        # create empty tensor to be filled with encoded positions
+        pe = torch.zeros(chunks, channels)
+        # populate tensor with encoded positions
+        for pos in range(chunks):
+            for i in range(0, channels, 2):
+                pe[pos, i] = np.sin(pos / (10000 ** ((2 * i) / channels)))
+                pe[pos, i + 1] = np.cos(pos / (10000 ** ((2 * (i + 1)) / channels)))
+
+        # convert tensor to shape of h (bs, chunks, channels) and return
+        return pe.unsqueeze(0).expand(bs, chunks, channels)
+
     def __len__(self):
         return len(self.label_data)
 
