@@ -24,10 +24,11 @@ class SeqTransformer(nn.Module):
         self.mask_token = nn.Embedding(1, seq_len)
         self.cls_token = nn.Embedding(1, dim)
 
-    def forward(self, seq: torch.Tensor,  mask: Optional[torch.Tensor] = None):
+    def forward(self, seq: torch.Tensor, pos: Optional[torch.Tensor] = None, mask: Optional[torch.Tensor] = None):
         """
 
         :param seq: (torch.Tensor: float64) dims (bs, chunks, channels, chunk_size)
+        :param pos: (torch.Tensor: float64) positional encoding (bs, chunks, channels, chunk_size)
         :param mask: torch.Tensor: int64): dims (bs, chunks)
         :return:
         """
@@ -37,9 +38,8 @@ class SeqTransformer(nn.Module):
             seq[mask_idx[0], mask_idx[1], :, :] = h_mask
         # CNN encoding
         h = self.encoder(seq)
-
-        pos = calc_encoded_positions(h.shape[0], h.shape[1], h.shape[2])
-        h = h + pos
+        if pos is not None:
+            h = h + pos
         # append cls token
         bs = seq.shape[0]
 
@@ -86,26 +86,10 @@ def get_masked_tensor(mask, src):
     output = src[idx[0], idx[1]]
     return output
 
-def calc_encoded_positions(bs,chunks, channels):
-    """
-    :param bs: batch size
-    :param chunks: number of chunks
-    :return:
-    """
-    # create empty tensor to be filled with encoded positions
-    pe = torch.zeros(chunks, channels)
-    # populate tensor with encoded positions
-    for pos in range(chunks):
-        for i in range(0, channels, 2):
-            pe[pos, i] = np.sin(pos / (10000 ** ((2 * i)/channels)))
-            pe[pos, i + 1] = np.cos(pos / (10000 ** ((2 * (i + 1))/channels)))
-
-    # convert tensor to shape of h (bs, chunks, channels) and return
-    return pe.unsqueeze(0).expand(bs, chunks, channels)
 
 
 if __name__ == "__main__":
-    # from utils import get_n_params, get_yaml_cfg
+    from utils import get_n_params, get_yaml_cfg
     bs = 4
     chunks = 12
     chunk_size = 32
