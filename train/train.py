@@ -17,16 +17,15 @@ def train(trn_cfg_path: str, model_cfg_path: str):
     trn_cfg = get_yaml_cfg(trn_cfg_path)
     model_cfg = get_yaml_cfg(model_cfg_path)
 
-    wandb.login(key="12e86495ba1196625be91161799a65f1f56aa345")
 
-    # run = wandb.init(
-    #     project=trn_cfg["wandb"]["project"],
-    #     entity=trn_cfg["wandb"]["entity"],
-    #     group=trn_cfg["wandb"]["group"],
-    #     job_type='TRAIN',
-    #     name=trn_cfg["wandb"]["name"],
-    #     config=trn_cfg
-    # )
+    run = wandb.init(
+        project=trn_cfg["wandb"]["project"],
+        entity=trn_cfg["wandb"]["entity"],
+        group=trn_cfg["wandb"]["group"],
+        job_type='TRAIN',
+        name=trn_cfg["wandb"]["name"],
+        config=trn_cfg
+    )
 
     model = build(model_cfg)
     optimizer = torch.optim.Adam(model.parameters(), lr=float(trn_cfg["optimization"]["lr"]))
@@ -55,10 +54,10 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         for x, y in tqdm(trn_loader, total=len(trn_loader)):
             signal = x["signal"]
             mask = x["mask"]
-            # if i == 0 and j == 0:
-                # for k in range(signal.shape[0]):
-                #     plot = trn_data.plot_batch(signal[k], y[k], mask[k], drop_zero=True)
-                #     run.log({"signal": wandb.Image(plot)})
+            if i == 0 and j == 0:
+                for k in range(signal.shape[0]):
+                    plot = trn_data.plot_batch(signal[k], y[k], mask[k], drop_zero=True)
+                    run.log({"signal": wandb.Image(plot)})
 
 
             # need [batch size, chunks, channels, chunk size]
