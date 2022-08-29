@@ -11,3 +11,4 @@ optimization:
   n_epochs: 5
   lr: 1e-4
   batch_size: 4
+  ma_lookback: 8

@@ -6,12 +6,17 @@ import torch
 
 from datasets.pump_dataset import SelfSupervisedPumpDataset
 from datasets.collate_fn import collate_padded
-from models.seq_transformer import build
+from models.seq_transformer import build, get_masked_tensor
 from utils import get_yaml_cfg
+from train.train_utils import RunningAvgQueue
 
 
-def calculate_loss(y_hat, y):
-    return torch.nn.functional.mse_loss(y_hat, y)
+def calculate_masked_loss(y_hat, y, mask):
+    y_for_loss = get_masked_tensor(mask, y.flatten(2))
+    y_hat_for_loss = get_masked_tensor(mask, y_hat[:, 1:, :])
+    objective = torch.mean(torch.norm(y_for_loss - y_hat_for_loss, p=2, dim=-1))
+    return objective
+
 
 def train(trn_cfg_path: str, model_cfg_path: str):
     trn_cfg = get_yaml_cfg(trn_cfg_path)
@@ -44,41 +49,42 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         collate_fn=collate_padded
     )
 
+    queue_loss = RunningAvgQueue(trn_cfg["optimization"]["ma_lookback"])
+
     best_loss = float("inf")
-    #wouldn't this just be pre training?
-    for i in range(1):
-    # for i in range(trn_cfg["optimization"]["n_epochs"]):
+    model.train()
+
+    for i in range(trn_cfg["optimization"]["n_epochs"]):
         print(f"\nStarting epoch {i+1}/{trn_cfg['optimization']['n_epochs']}\n")
 
         j = 0
-        for x, y in tqdm(trn_loader, total=len(trn_loader)):
+        for x, cls in tqdm(trn_loader, total=len(trn_loader)):
             signal = x["signal"]
             mask = x["mask"]
             if i == 0 and j == 0:
                 for k in range(signal.shape[0]):
-                    plot = trn_data.plot_batch(signal[k], y[k], mask[k], drop_zero=True)
+                    plot = trn_data.plot_batch(signal[k], cls[k], mask[k], drop_zero=True)
                     run.log({"signal": wandb.Image(plot)})
 
 
             # need [batch size, chunks, channels, chunk size]
-            og_signal = signal
             signal = torch.permute(signal,[0, 1, 3, 2])
 
+            optimizer.zero_grad()
             y_hat = model(signal, mask)
 
             #y is shape (4, 299, 1), y_hat is shape (4, 300, 96)... why?
 
 
 
-            loss = calculate_loss(y_hat, y)
+            loss = calculate_masked_loss(y_hat, signal, mask)
+            print(loss)
 
             # Implement backward pass, zero gradient etc...
             # Implement the optimizer and loss function
-            optimizer.zero_grad()
-            model.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), trn_cfg["optimization"]["clip_grad_norm"])
-            model.optimizer.step()
+            optimizer.step()
+
 
             j += 1
 
