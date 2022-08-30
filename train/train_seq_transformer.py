@@ -50,14 +50,29 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         collate_fn=collate_padded
     )
 
-    queue_loss = RunningAvgQueue(trn_cfg["optimization"]["ma_lookback"])
+    val_fpath = trn_cfg["dataset"]["ctrl_file"].replace("train", "val")
+    val_data = SelfSupervisedPumpDataset(
+        ctrl_fpath=val_fpath,
+        data_dir=trn_cfg["dataset"]["data_dir"],
+        chunk_length=model_cfg["meta"]["seq_len"],
+        rand_chunk_rate=trn_cfg["dataset"]["rand_chunk_prob"],
+        mask_prob=model_cfg["meta"]["mask_prob"]
+    )
+    val_loader = DataLoader(
+        trn_data,
+        shuffle=False,
+        batch_size=trn_cfg["optimization"]["val_batch_size"],
+        collate_fn=collate_padded,
+        drop_last=False
+    )
 
     best_loss = float("inf")
-    model.train()
+
 
 
     for i in range(trn_cfg["optimization"]["n_epochs"]):
         print(f"\nStarting epoch {i+1}/{trn_cfg['optimization']['n_epochs']}\n")
+        model.train()
         epoch_loss = 0
         j = 0
         pbar = tqdm(trn_loader, total=len(trn_loader))
@@ -112,6 +127,47 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         # if model(signal, mask).item() < best_loss:
         #     torch.save(model.state_dict(), f"{run.dir}/best.pt")
         #     best_loss = model(signal, mask).item()
+
+        # validation loop
+        val_pbar = tqdm(val_loader, total=len(val_loader))
+        model.eval()
+        print("\n----> Validation inference <----")
+
+        val_targets = []
+        val_pred = []
+        val_masks = []
+        avg_val_loss = 0
+        for x, cls in val_pbar:
+            signal = x["signal"].to(device)
+            mask = x["mask"].to(device)
+
+            # need [batch size, chunks, channels, chunk size]
+            signal = torch.permute(signal, [0, 1, 3, 2])
+
+            y_hat = model(signal, mask)
+            val_loss = calculate_masked_loss(y_hat, signal, mask).detach()
+
+            avg_val_loss += val_loss
+
+            #val_targets.append(signal.detach())
+            #val_pred.append(y_hat.detach())
+            #val_masks.append(mask.detach())
+
+        avg_val_loss = avg_val_loss / len(val_loader)
+        run.log({"val/loss": avg_val_loss})
+        print(
+            "\nval/loss {:.5f} ".format(avg_val_loss)
+        )
+
+        #val_targets = torch.cat(val_targets, dim=0)
+        #val_pred = torch.cat(val_pred, dim=0)
+        #val_masks = torch.cat(val_masks, dim=0)
+
+
+
+
+
+
 
 
 

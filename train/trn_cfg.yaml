@@ -8,8 +8,9 @@ dataset:
   data_dir: '//home/porter/code/drill/Preprocessing/Segments'
   rand_chunk_prob: 0.0
 optimization:
-  n_epochs: 40
+  n_epochs: 20
   lr: 3e-4
   batch_size: 4
+  val_batch_size: 4
   ma_lookback: 8
   cuda: True
