@@ -14,7 +14,8 @@ class SeqTransformer(nn.Module):
             transformer: Transformer,
             head: RegressorHead,
             dim: int,
-            seq_len: int = 32
+            seq_len: int = 32,
+            use_cuda: bool = False
 
     ):
         super(SeqTransformer, self).__init__()
@@ -23,6 +24,14 @@ class SeqTransformer(nn.Module):
         self.head = head
         self.mask_token = nn.Embedding(1, seq_len)
         self.cls_token = nn.Embedding(1, dim)
+
+        if use_cuda:
+            self = self.cuda()
+            self.device = torch.device('cuda')
+        else:
+            self.device = torch.device('cpu')
+
+        stop = 0
 
     def forward(self, seq: torch.Tensor, pos: Optional[torch.Tensor] = None, mask: Optional[torch.Tensor] = None):
         """
@@ -44,14 +53,14 @@ class SeqTransformer(nn.Module):
         bs = seq.shape[0]
 
         #the next two lines add the extra cls token to the end of each sequence (changing the dim from (bs, chunks, channels, chunk_size) to (bs, chunks, channels + 1, chunk_size)
-        cls = self.cls_token(torch.zeros(bs).long())
+        cls = self.cls_token(torch.zeros(bs).long().to(self.device))
         h = torch.cat([cls.unsqueeze(1), h], dim=1)
 
         h = self.transformer(h)
         output = self.head(h)
         return output
 
-def build(cfg: dict):
+def build(cfg: dict, use_cuda: bool):
 
     output_dim = cfg["encoder"]["n_channels"]*cfg["meta"]["seq_len"]
 
@@ -77,7 +86,8 @@ def build(cfg: dict):
         transformer=transformer,
         head=head,
         dim=512,
-        seq_len=32
+        seq_len=32,
+        use_cuda=use_cuda
     )
     return model
 

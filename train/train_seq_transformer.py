@@ -21,6 +21,7 @@ def calculate_masked_loss(y_hat, y, mask):
 def train(trn_cfg_path: str, model_cfg_path: str):
     trn_cfg = get_yaml_cfg(trn_cfg_path)
     model_cfg = get_yaml_cfg(model_cfg_path)
+    device = torch.device('cuda' if trn_cfg["optimization"]["cuda"] else 'cpu')
 
 
     run = wandb.init(
@@ -32,7 +33,7 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         config=trn_cfg
     )
 
-    model = build(model_cfg)
+    model = build(model_cfg, use_cuda=trn_cfg["optimization"]["cuda"])
     optimizer = torch.optim.Adam(model.parameters(), lr=float(trn_cfg["optimization"]["lr"]))
 
     trn_data = SelfSupervisedPumpDataset(
@@ -54,16 +55,23 @@ def train(trn_cfg_path: str, model_cfg_path: str):
     best_loss = float("inf")
     model.train()
 
+
     for i in range(trn_cfg["optimization"]["n_epochs"]):
         print(f"\nStarting epoch {i+1}/{trn_cfg['optimization']['n_epochs']}\n")
-
+        epoch_loss = 0
         j = 0
-        for x, cls in tqdm(trn_loader, total=len(trn_loader)):
-            signal = x["signal"]
-            mask = x["mask"]
+        pbar = tqdm(trn_loader, total=len(trn_loader))
+        for x, cls in pbar:
+            signal = x["signal"].to(device)
+            mask = x["mask"].to(device)
             if i == 0 and j == 0:
                 for k in range(signal.shape[0]):
-                    plot = trn_data.plot_batch(signal[k], cls[k], mask[k], drop_zero=True)
+                    plot = trn_data.plot_batch(
+                        signal[k].cpu(),
+                        cls[k].cpu(),
+                        mask[k].cpu(),
+                        drop_zero=True
+                    )
                     run.log({"signal": wandb.Image(plot)})
 
 
@@ -73,20 +81,29 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             optimizer.zero_grad()
             y_hat = model(signal, mask)
 
-            #y is shape (4, 299, 1), y_hat is shape (4, 300, 96)... why?
-
-
 
             loss = calculate_masked_loss(y_hat, signal, mask)
-            print(loss)
 
             # Implement backward pass, zero gradient etc...
             # Implement the optimizer and loss function
             loss.backward()
             optimizer.step()
 
+            pbar.set_description(
+                "train loss: {:.5f}".format(loss.detach())
+            )
+            run.log({"train/batch-loss": loss.detach()})
+
+            epoch_loss += loss.detach()
 
             j += 1
+
+        avg_epoch_loss = epoch_loss / len(trn_loader)
+        run.log({"train/loss":avg_epoch_loss})
+        print(
+            "\ntrain/loss {:.5f} ".format(avg_epoch_loss)
+        )
+
 
         # Checkpoint model after each epoch:
         #     Log the best model "best.pt" (best model to this point)
