@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 
-
 class ConvEncoderNetwork(nn.Module):
     def __init__(self, n_channels: int, feat_size: int):
         super(ConvEncoderNetwork, self).__init__()
@@ -58,7 +57,6 @@ class ConvEncoderNetwork(nn.Module):
         #h = self.maxpool(h)
         h = h.flatten(start_dim=1)
         h = self.relu(self.linear(h))
-
         return h.view(bs, n, -1)
 
 
