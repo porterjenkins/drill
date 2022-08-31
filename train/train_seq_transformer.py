@@ -110,15 +110,15 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         for x, cls in pbar:
             signal = x["signal"].to(device)
             mask = x["mask"].to(device)
-            """if i == 0 and j == 0:
+            if i == 0 and j == 0:
                 for k in range(signal.shape[0]):
                     plot = trn_data.plot_batch(
                         signal[k].cpu(),
                         cls[k].cpu(),
                         mask[k].cpu(),
-                        drop_zero=True
+                        drop_zero=False
                     )
-                    run.log({"signal": wandb.Image(plot)})"""
+                    run.log({"signal": wandb.Image(plot)})
 
 
             # need [batch size, chunks, channels, chunk size]
