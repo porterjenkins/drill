@@ -3,7 +3,7 @@ meta:
   seq_len: 32
   mask_prob: 0.15
 encoder:
-  n_channels: 3
+  n_channels: 1
 transformer:
   attn_heads: 4
   n_encoder_blocks: 1

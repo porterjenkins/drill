@@ -102,9 +102,9 @@ class PumpDataset(Dataset):
             ),
             index_col=None,
             header=None,
-            names=["timestamp", "dt", "h1", "h2", "h3"]
+            names=["time", "dt", "h1", "h2", "h3", "angle", "angle_2", "matlab_ts", "user", "cls", "pred"]
         )
-        signal = signal[["h1", "h2", "h3"]].values
+        signal = signal[["angle"]].values
 
         label = self.label_data[idx] - 1 # 0 index labels
         sample = {'signal': signal, 'label': label}
@@ -151,28 +151,21 @@ class SelfSupervisedPumpDataset(PumpDataset):
 
         # Create and combine chunks
         #new_chunks = np.zeros([1, chunk_length, 2], dtype=float)  # initialize array for concatenation in the loop
-        new_chunks = np.zeros((num_chunks, chunk_length, 3), dtype=float)
+        new_chunks = np.zeros((num_chunks, chunk_length, n_channels), dtype=float)
         for j in range(num_chunks):
             new_chunk = signal[np.newaxis, 0 + j * chunk_length:chunk_length + j * chunk_length, :]
-            new_chunks[j] = new_chunk / new_chunk.mean(axis=-1, keepdims=True)
+            new_chunks[j] = new_chunk
 
 
 
         # Also augment by getting random chunks
         num_rand_chunks = int(rand_pct*num_chunks)  # changed from 3 to 10 for only Day 1 data; improved acc from 50% to 100%
-        rand_chunks = np.zeros((num_rand_chunks, chunk_length, 3), dtype=float)
-        for j in range(num_rand_chunks):
-            start_ind = np.random.randint(0, duration_ind - chunk_length)
-            new_chunk = signal[np.newaxis, start_ind:(start_ind + chunk_length), : ]
-            rand_chunks[j] = new_chunk - new_chunk.mean(axis=-1, keepdims=True)  # Normalizing each chunk to have a mean of 0
+        rand_chunks = np.zeros((num_rand_chunks, chunk_length, n_channels), dtype=float)
 
-            # this loop removes any chunks with large (>65 degree) jumps
-            """for k in range(new_chunk.shape[0]):
-                #           counter_chunks += 1
-                if max(new_chunk[k, :, 0]) - min(new_chunk[k, :, 0]) < 65:
-                    #             counter_recorded += 1
-                    #             big_jump.append(new_chunk[k, :, 0]) # each chunk, all the angle data
-                    new_chunks = np.vstack((new_chunks, new_chunk))"""
+        #for j in range(num_rand_chunks):
+        #    start_ind = np.random.randint(0, duration_ind - chunk_length)
+        #    new_chunk = signal[np.newaxis, start_ind:(start_ind + chunk_length), : ]
+        #    rand_chunks[j] = new_chunk - new_chunk.mean(axis=-1, keepdims=True)  # Normalizing each chunk to have a mean of 0
 
         return new_chunks, num_chunks, rand_chunks
 
@@ -184,39 +177,37 @@ class SelfSupervisedPumpDataset(PumpDataset):
             x = x.data.numpy()
 
         start_idx = 0
-        chunk_size = x.shape[1]
+        _, chunk_size, n_channel = x.shape
 
-        fig, axs = plt.subplots(3, figsize=figsize)
+
+
+        fig = plt.figure(figsize=figsize)
 
         for j in range(x.shape[0]):
             chunk_color = np.random.rand(3, )
             is_mask = bool(mask[j])
             signal = x[j, :, :]
-            for k in range(3):
-                if is_mask:
-                    style = (0, (1, 10))
-                    c = 'gray'
-                else:
-                    c = chunk_color
-                    style = "dotted"
 
-                if drop_zero:
-                    drop_idx = np.where(
-                        (signal[:, 0] == 0.0) & (signal[:, 1] == 0.0) & (signal[:, 2] == 0.0)
-                    )[0]
-                    if len(drop_idx) > 0:
-                        #signal = signal[~drop_idx]
-                        break
+            if is_mask:
+                style = (0, (1, 10))
+                c = 'gray'
+            else:
+                c = chunk_color
+                style = "dotted"
 
-                axs[k].plot(
-                    np.arange(start_idx, start_idx + chunk_size),
-                    signal[:, k],
-                    linestyle=style,
-                    c=c,
-                    alpha=0.5
-                )
+            if drop_zero and np.all(signal) == 0.0:
+                continue
+
+            plt.plot(
+                np.arange(start_idx, start_idx + chunk_size),
+                signal,
+                linestyle=style,
+                c=c,
+                alpha=0.5
+            )
 
             start_idx += chunk_size
+        plt.show()
         return fig
 
 

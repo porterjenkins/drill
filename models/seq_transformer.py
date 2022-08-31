@@ -103,13 +103,13 @@ if __name__ == "__main__":
     bs = 4
     chunks = 12
     chunk_size = 32
-    channels = 3
+    channels = 1
     # following 2 lines are dataloaded
     x = torch.randn(bs, chunks, channels, chunk_size)
 
     mask = torch.randint(0, 2, size=(4, 12))
     cfg = get_yaml_cfg("../models/cfg_seq_transformer.yaml")
-    model = build(cfg)
+    model = build(cfg, use_cuda=False)
     y = model(x, mask=mask)
 
 
