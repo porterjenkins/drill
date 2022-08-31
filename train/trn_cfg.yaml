@@ -8,7 +8,7 @@ dataset:
   data_dir: '/home/porter/code/drill/Preprocessing/Segments_Labeled_08-25-22'
   rand_chunk_prob: 0.0
 optimization:
-  n_epochs: 10
+  n_epochs: 5
   lr: 3e-4
   batch_size: 16
   val_batch_size: 4

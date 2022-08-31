@@ -1,4 +1,6 @@
 import argparse
+
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 import wandb
@@ -17,6 +19,33 @@ def calculate_masked_loss(y_hat, y, mask):
     objective = torch.mean(torch.norm(y_for_loss - y_hat_for_loss, p=2, dim=-1))
     return objective
 
+def plot_batch_pred(signal, pred, mask, k=10, figsize=(10, 5)):
+    signal = torch.permute(signal, [0, 2, 1]).squeeze(-1)
+    signal = signal[:k]
+    mask = mask[:k].squeeze(-1)
+    pred = pred[:k]
+
+    assert (signal.shape[0] == mask.shape[0]) and (signal.shape[0] == pred.shape[0])
+    n_chunk, chunk_size = signal.shape
+
+    fig = plt.figure(figsize=figsize)
+    plt.xlabel("step")
+    plt.ylabel("pump angle")
+
+    start_idx = 0
+    for i in range(signal.shape[0]):
+        sig_chunk = signal[i]
+        pred_chunk = pred[i]
+
+        x = torch.arange(start_idx, start_idx+chunk_size)
+        if mask[i] == 0.0:
+            plt.plot(x, sig_chunk, c='g')
+        else:
+            plt.plot(x, sig_chunk, c='gray', linestyle='-.', alpha=0.7)
+            plt.plot(x, pred_chunk, c='r', linestyle='--')
+
+        start_idx += chunk_size
+    return fig
 
 def train(trn_cfg_path: str, model_cfg_path: str):
     trn_cfg = get_yaml_cfg(trn_cfg_path)
@@ -79,7 +108,7 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         for x, cls in pbar:
             signal = x["signal"].to(device)
             mask = x["mask"].to(device)
-            if i == 0 and j == 0:
+            """if i == 0 and j == 0:
                 for k in range(signal.shape[0]):
                     plot = trn_data.plot_batch(
                         signal[k].cpu(),
@@ -87,7 +116,7 @@ def train(trn_cfg_path: str, model_cfg_path: str):
                         mask[k].cpu(),
                         drop_zero=True
                     )
-                    run.log({"signal": wandb.Image(plot)})
+                    run.log({"signal": wandb.Image(plot)})"""
 
 
             # need [batch size, chunks, channels, chunk size]
@@ -137,7 +166,9 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         val_pred = []
         val_masks = []
         avg_val_loss = 0
+        val_cntr = 0
         for x, cls in val_pbar:
+
             signal = x["signal"].to(device)
             mask = x["mask"].to(device)
 
@@ -149,9 +180,21 @@ def train(trn_cfg_path: str, model_cfg_path: str):
 
             avg_val_loss += val_loss
 
+            if val_cntr == 0:
+                # plot first batch only
+                fig = plot_batch_pred(
+                    signal[0].detach().cpu(),
+                    y_hat[0, 1:, ::].detach().cpu(),
+                    mask[0].detach().cpu(),
+                    k=50
+                )
+                run.log({"prediction": wandb.Image(fig)})
+
             #val_targets.append(signal.detach())
             #val_pred.append(y_hat.detach())
             #val_masks.append(mask.detach())
+
+            val_cntr += 1
 
         avg_val_loss = avg_val_loss / len(val_loader)
         run.log({"val/loss": avg_val_loss})

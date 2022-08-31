@@ -14,6 +14,12 @@ from torchvision import transforms, utils
 class PumpDataset(Dataset):
     """Pump dataset."""
 
+    idx_to_cls = {
+        1: "child",
+        2: "woman",
+        3: "man"
+    }
+
     def __init__(self, ctrl_fpath: str, data_dir: str, transform=None):
         """
 
@@ -182,7 +188,9 @@ class SelfSupervisedPumpDataset(PumpDataset):
 
 
         fig = plt.figure(figsize=figsize)
-
+        cls = torch.max(y).data.numpy()
+        if cls > 0:
+            plt.title(f"{SelfSupervisedPumpDataset.idx_to_cls[int(cls)]}")
         for j in range(x.shape[0]):
             chunk_color = np.random.rand(3, )
             is_mask = bool(mask[j])
@@ -207,7 +215,6 @@ class SelfSupervisedPumpDataset(PumpDataset):
             )
 
             start_idx += chunk_size
-        plt.show()
         return fig
 
 
