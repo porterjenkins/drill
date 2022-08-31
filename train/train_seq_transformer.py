@@ -19,32 +19,34 @@ def calculate_masked_loss(y_hat, y, mask):
     objective = torch.mean(torch.norm(y_for_loss - y_hat_for_loss, p=2, dim=-1))
     return objective
 
-def plot_batch_pred(signal, pred, mask, k=10, figsize=(10, 5)):
-    signal = torch.permute(signal, [0, 2, 1]).squeeze(-1)
-    signal = signal[:k]
-    mask = mask[:k].squeeze(-1)
-    pred = pred[:k]
+def plot_batch_pred(signal, pred, mask, k=10, figsize=(12, 5)):
+    bs = signal.shape[0]
+    fig, ax = plt.subplots(nrows=bs, ncols=1, figsize=figsize)
+    signal = torch.permute(signal, [0, 1, 3, 2]).squeeze(-1)
 
-    assert (signal.shape[0] == mask.shape[0]) and (signal.shape[0] == pred.shape[0])
-    n_chunk, chunk_size = signal.shape
 
-    fig = plt.figure(figsize=figsize)
-    plt.xlabel("step")
-    plt.ylabel("pump angle")
+    for b in range(bs):
+        batch_gt = signal[b, :k]
+        batch_mask = mask[b, :k].squeeze(-1)
+        batch_pred = pred[b, :k]
 
-    start_idx = 0
-    for i in range(signal.shape[0]):
-        sig_chunk = signal[i]
-        pred_chunk = pred[i]
+        assert (batch_gt.shape[0] == batch_mask.shape[0]) and (batch_gt.shape[0] == batch_pred.shape[0])
+        n_chunk, chunk_size = batch_gt.shape
 
-        x = torch.arange(start_idx, start_idx+chunk_size)
-        if mask[i] == 0.0:
-            plt.plot(x, sig_chunk, c='g')
-        else:
-            plt.plot(x, sig_chunk, c='gray', linestyle='-.', alpha=0.7)
-            plt.plot(x, pred_chunk, c='r', linestyle='--')
 
-        start_idx += chunk_size
+        start_idx = 0
+        for i in range(batch_gt.shape[0]):
+            sig_chunk = batch_gt[i]
+            pred_chunk = batch_pred[i]
+
+            x = torch.arange(start_idx, start_idx+chunk_size)
+            if batch_mask[i] == 0.0:
+                ax[b].plot(x, sig_chunk, c='g')
+            else:
+                ax[b].plot(x, sig_chunk, c='gray', linestyle='-.', alpha=0.7)
+                ax[b].plot(x, pred_chunk, c='r', linestyle='--')
+
+            start_idx += chunk_size
     return fig
 
 def train(trn_cfg_path: str, model_cfg_path: str):
@@ -183,9 +185,9 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             if val_cntr == 0:
                 # plot first batch only
                 fig = plot_batch_pred(
-                    signal[0].detach().cpu(),
-                    y_hat[0, 1:, ::].detach().cpu(),
-                    mask[0].detach().cpu(),
+                    signal.detach().cpu(),
+                    y_hat[:, 1:, ::].detach().cpu(),
+                    mask.detach().cpu(),
                     k=50
                 )
                 run.log({"prediction": wandb.Image(fig)})
