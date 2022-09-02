@@ -106,7 +106,7 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         mask_prob=model_cfg["meta"]["mask_prob"]
     )
     val_loader = DataLoader(
-        trn_data,
+        val_data,
         shuffle=False,
         batch_size=trn_cfg["optimization"]["val_batch_size"],
         collate_fn=collate_padded,
