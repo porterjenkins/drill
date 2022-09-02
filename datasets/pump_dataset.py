@@ -188,9 +188,9 @@ class SelfSupervisedPumpDataset(PumpDataset):
 
 
         fig = plt.figure(figsize=figsize)
-        cls = torch.max(y).data.numpy()
-        if cls > 0:
-            plt.title(f"{SelfSupervisedPumpDataset.idx_to_cls[int(cls)]}")
+
+        cls = int(y) + 1 # undo zero-index (file is 1-indexed)
+        plt.title(f"{SelfSupervisedPumpDataset.idx_to_cls[cls]}")
         for j in range(x.shape[0]):
             chunk_color = np.random.rand(3, )
             is_mask = bool(mask[j])
@@ -223,16 +223,15 @@ class SelfSupervisedPumpDataset(PumpDataset):
     def __getitem__(self, idx):
         signal, label = PumpDataset.__getitem__(self, idx)
         signal, n_chunks, rand = self.get_chunks(signal, self.chunk_length, self.rand_chunk_rate)
-        label = torch.Tensor(np.repeat(label, n_chunks))
+        sig_label = torch.Tensor(np.repeat(label, n_chunks))
 
         # TODO: concat tensors
         signal = torch.Tensor(signal).float()
-        rand = torch.Tensor(rand).float()
 
         # generate mask tokens
         mask = torch.Tensor(np.random.binomial(1, p=self.mask_prob, size=n_chunks)).long()
 
-        return {"signal": signal, "mask": mask}, label
+        return {"signal": signal, "mask": mask, "sig_label": sig_label}, label
 
 
 if __name__ == "__main__":

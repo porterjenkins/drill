@@ -5,6 +5,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 import wandb
 import torch
+import os
 
 from datasets.pump_dataset import SelfSupervisedPumpDataset
 from datasets.collate_fn import collate_padded
@@ -18,6 +19,15 @@ def calculate_masked_loss(y_hat, y, mask):
     y_hat_for_loss = get_masked_tensor(mask, y_hat[:, 1:, :])
     objective = torch.mean(torch.norm(y_for_loss - y_hat_for_loss, p=2, dim=-1))
     return objective
+
+def init_chkp_dir(chkp, run_name):
+    if not os.path.exists(chkp):
+        os.mkdir(chkp)
+    run_dir = os.path.join(chkp, run_name)
+    if not os.path.exists(run_dir):
+        os.mkdir(run_dir)
+
+    return run_dir
 
 def plot_batch_pred(signal, pred, mask, k=10, figsize=(12, 5)):
     bs = signal.shape[0]
@@ -54,6 +64,10 @@ def train(trn_cfg_path: str, model_cfg_path: str):
     model_cfg = get_yaml_cfg(model_cfg_path)
     device = torch.device('cuda' if trn_cfg["optimization"]["cuda"] else 'cpu')
 
+    run_dir = init_chkp_dir(
+        trn_cfg["optimization"]["chkp_dir"],
+        trn_cfg["wandb"]["name"]
+    )
 
     run = wandb.init(
         project=trn_cfg["wandb"]["project"],
@@ -98,8 +112,6 @@ def train(trn_cfg_path: str, model_cfg_path: str):
     )
 
     best_loss = float("inf")
-
-
 
     for i in range(trn_cfg["optimization"]["n_epochs"]):
         print(f"\nStarting epoch {i+1}/{trn_cfg['optimization']['n_epochs']}\n")
@@ -151,13 +163,6 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         )
 
 
-        # Checkpoint model after each epoch:
-        #     Log the best model "best.pt" (best model to this point)
-        #     Log the last model "last.pt"
-        # torch.save(model.state_dict(), f"{run.dir}/last.pt")
-        # if model(signal, mask).item() < best_loss:
-        #     torch.save(model.state_dict(), f"{run.dir}/best.pt")
-        #     best_loss = model(signal, mask).item()
 
         # validation loop
         val_pbar = tqdm(val_loader, total=len(val_loader))
@@ -209,18 +214,17 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         #val_masks = torch.cat(val_masks, dim=0)
 
 
+        # Checkpoint model after each epoch:
+        #     Log the best model "best.pt" (best model to this point)
+        #     Log the last model "last.pt"
+
+        torch.save(model.state_dict(), f"{run_dir}/last.pt")
+        if avg_val_loss < best_loss:
+            torch.save(model.state_dict(), f"{run_dir}/best.pt")
+            #print("New best loss: {:.4f} --> {:.4f}".format(best_loss, avg_val_loss))
+            best_loss = avg_val_loss
 
 
-
-
-
-
-
-
-    # Implement a validation data loader and validation loop.
-    # Run experiments, verify that model is able to learn
-
-    # Calculate loss over the full validation set; not an average over validation batches. Log to wandb.
 def val(model, val_cfg_path: str):
     pass
 

@@ -14,3 +14,4 @@ optimization:
   val_batch_size: 4
   ma_lookback: 8
   cuda: True
+  chkp_dir : "./chkp"
