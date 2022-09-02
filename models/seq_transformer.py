@@ -3,8 +3,10 @@ import torch.nn as nn
 from models.transformer import Transformer
 from models.convnet import ConvEncoderNetwork
 from models.regressor import RegressorHead
+from models.classifer import ClassifierHead
+
 import numpy as np
-from typing import Optional
+from typing import Optional, Union
 
 class SeqTransformer(nn.Module):
 
@@ -12,7 +14,7 @@ class SeqTransformer(nn.Module):
             self,
             conv_encoder: ConvEncoderNetwork,
             transformer: Transformer,
-            head: RegressorHead,
+            head: Union[RegressorHead, ClassifierHead],
             dim: int,
             seq_len: int = 32,
             use_cuda: bool = False
@@ -22,6 +24,7 @@ class SeqTransformer(nn.Module):
         self.encoder = conv_encoder
         self.transformer = transformer
         self.head = head
+        self.is_classifer = True if isinstance(head, ClassifierHead) else False
         self.mask_token = nn.Embedding(1, seq_len)
         self.cls_token = nn.Embedding(1, dim)
 
@@ -57,10 +60,13 @@ class SeqTransformer(nn.Module):
         h = torch.cat([cls.unsqueeze(1), h], dim=1)
 
         h = self.transformer(h)
-        output = self.head(h)
+        if self.is_classifer:
+            output = self.head(h[:, 0, :])
+        else:
+            output = self.head(h)
         return output
 
-def build(cfg: dict, use_cuda: bool):
+def build_reg(cfg: dict, use_cuda: bool):
 
     output_dim = cfg["encoder"]["n_channels"]*cfg["meta"]["seq_len"]
 
@@ -91,6 +97,35 @@ def build(cfg: dict, use_cuda: bool):
     )
     return model
 
+def build_cls(cfg: dict, use_cuda: bool):
+
+    encoder = ConvEncoderNetwork(
+        n_channels=cfg["encoder"]["n_channels"],
+        feat_size=cfg["meta"]["feat_size"],
+    )
+    transformer = Transformer(
+        dim=cfg["meta"]["feat_size"],
+        attn_heads=cfg["transformer"]["attn_heads"],
+        n_enc_blocks=cfg["transformer"]["n_encoder_blocks"],
+        dropout_prob=cfg["transformer"]["dropout"],
+    )
+    head = ClassifierHead(
+        input_size=cfg["meta"]["feat_size"],
+        reg_layers=cfg["classifier"]["reg_layers"],
+        n_classes=cfg["classifier"]["n_cls"],
+        dropout_prob=cfg["classifier"]["dropout"]
+    )
+
+    model = SeqTransformer(
+        conv_encoder=encoder,
+        transformer=transformer,
+        head=head,
+        dim=512,
+        seq_len=32,
+        use_cuda=use_cuda
+    )
+    return model
+
 def get_masked_tensor(mask, src):
     idx = torch.where(mask)
     output = src[idx[0], idx[1]]
@@ -108,15 +143,11 @@ if __name__ == "__main__":
     x = torch.randn(bs, chunks, channels, chunk_size)
 
     mask = torch.randint(0, 2, size=(4, 12))
-    cfg = get_yaml_cfg("../models/cfg_seq_transformer.yaml")
-    model = build(cfg, use_cuda=False)
+    cfg = get_yaml_cfg("../models/cfg_seq_classifier.yaml")
+    #model = build_reg(cfg, use_cuda=False)
+    model = build_cls(cfg, use_cuda=False)
+    #model.eval()
     y = model(x, mask=mask)
 
 
-    #use the following 3 lines as loss
-    y_for_loss = get_masked_tensor(mask, x.flatten(2))
-    y_hat_for_loss = get_masked_tensor(mask, y[:, 1:, :])
-    d = torch.norm(y_for_loss - y_hat_for_loss, p=2)
-    print(d)
 
-    print(get_n_params(model))

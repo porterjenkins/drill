@@ -9,8 +9,8 @@ import os
 
 from datasets.pump_dataset import SelfSupervisedPumpDataset
 from datasets.collate_fn import collate_padded
-from models.seq_transformer import build, get_masked_tensor
-from utils import get_yaml_cfg
+from models.seq_transformer import build_reg, get_masked_tensor
+from utils import get_yaml_cfg, get_n_params
 from train.train_utils import RunningAvgQueue
 
 
@@ -78,8 +78,10 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         config=trn_cfg
     )
 
-    model = build(model_cfg, use_cuda=trn_cfg["optimization"]["cuda"])
+    model = build_reg(model_cfg, use_cuda=trn_cfg["optimization"]["cuda"])
     optimizer = torch.optim.Adam(model.parameters(), lr=float(trn_cfg["optimization"]["lr"]))
+    n_params = get_n_params(model)
+    print(f"Parameters: {n_params}")
 
     trn_data = SelfSupervisedPumpDataset(
         ctrl_fpath=trn_cfg["dataset"]["ctrl_file"],
