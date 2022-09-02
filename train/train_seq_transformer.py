@@ -139,7 +139,7 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             signal = torch.permute(signal,[0, 1, 3, 2])
 
             optimizer.zero_grad()
-            y_hat = model(signal, mask)
+            y_hat = model(signal, mask=mask)
 
 
             loss = calculate_masked_loss(y_hat, signal, mask)
@@ -184,7 +184,7 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             # need [batch size, chunks, channels, chunk size]
             signal = torch.permute(signal, [0, 1, 3, 2])
 
-            y_hat = model(signal, mask)
+            y_hat = model(signal, mask=mask)
             val_loss = calculate_masked_loss(y_hat, signal, mask).detach()
 
             avg_val_loss += val_loss
