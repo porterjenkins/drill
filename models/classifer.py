@@ -18,7 +18,7 @@ class ClassifierHead(nn.Module):
         self.dropout_prob = dropout_prob
         self.weights = self._build_mlp(input_size, reg_layers)
         self.output = nn.Linear(self.reg_layers[-1], n_classes)
-        self.softmax = nn.Softmax()
+        self.softmax = nn.Softmax(dim=-1)
 
     def _build_mlp(self, input_size, reg_layers):
         W = []

@@ -36,7 +36,7 @@ class SeqTransformer(nn.Module):
 
         stop = 0
 
-    def forward(self, seq: torch.Tensor, pos: Optional[torch.Tensor] = None, mask: Optional[torch.Tensor] = None):
+    def forward(self, seq: torch.Tensor, pos: Optional[torch.Tensor] = None, mask: Optional[torch.Tensor] = None, mask_pos = None):
         """
 
         :param seq: (torch.Tensor: float64) dims (bs, chunks, channels, chunk_size)
@@ -45,7 +45,9 @@ class SeqTransformer(nn.Module):
         :return:
         """
         if mask is not None:
-            h_mask = self.mask_token(torch.zeros(1).long())
+            h_mask = self.mask_token(
+                torch.zeros(1).long().to(self.device)
+            )
             mask_idx = torch.where(mask)
             seq[mask_idx[0], mask_idx[1], :, :] = h_mask
         # CNN encoding
@@ -60,6 +62,9 @@ class SeqTransformer(nn.Module):
         h = torch.cat([cls.unsqueeze(1), h], dim=1)
 
         h = self.transformer(h)
+
+        #h_masked = get_masked_tensor(mask, h)
+
         if self.is_classifer:
             output = self.head(h[:, 0, :])
         else:

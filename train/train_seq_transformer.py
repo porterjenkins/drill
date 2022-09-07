@@ -15,9 +15,10 @@ from train.train_utils import RunningAvgQueue
 
 
 def calculate_masked_loss(y_hat, y, mask):
-    y_for_loss = get_masked_tensor(mask, y.flatten(2))
-    y_hat_for_loss = get_masked_tensor(mask, y_hat[:, 1:, :])
-    objective = torch.mean(torch.norm(y_for_loss - y_hat_for_loss, p=2, dim=-1))
+    #y_for_loss = get_masked_tensor(mask, y.flatten(2))
+    #y_hat_for_loss = get_masked_tensor(mask, y_hat[:, 1:, :])
+    #objective = torch.mean(torch.norm(y - y_hat, p=2, dim=-1))
+    objective = torch.mean(torch.norm(y.flatten(2) - y_hat[:, 1:, :], p=2, dim=-1))
     return objective
 
 def init_chkp_dir(chkp, run_name):
@@ -33,7 +34,6 @@ def plot_batch_pred(signal, pred, mask, k=10, figsize=(12, 5)):
     bs = signal.shape[0]
     fig, ax = plt.subplots(nrows=bs, ncols=1, figsize=figsize)
     signal = torch.permute(signal, [0, 1, 3, 2]).squeeze(-1)
-
 
     for b in range(bs):
         batch_gt = signal[b, :k]
@@ -53,10 +53,13 @@ def plot_batch_pred(signal, pred, mask, k=10, figsize=(12, 5)):
             if batch_mask[i] == 0.0:
                 ax[b].plot(x, sig_chunk, c='g')
             else:
+                #print(sig_chunk)
                 ax[b].plot(x, sig_chunk, c='gray', linestyle='-.', alpha=0.7)
                 ax[b].plot(x, pred_chunk, c='r', linestyle='--')
 
             start_idx += chunk_size
+
+    #plt.show()
     return fig
 
 def train(trn_cfg_path: str, model_cfg_path: str):
@@ -79,7 +82,12 @@ def train(trn_cfg_path: str, model_cfg_path: str):
     )
 
     model = build_reg(model_cfg, use_cuda=trn_cfg["optimization"]["cuda"])
-    optimizer = torch.optim.Adam(model.parameters(), lr=float(trn_cfg["optimization"]["lr"]))
+    print(model.mask_token.weight)
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=float(trn_cfg["optimization"]["lr"]),
+        weight_decay=trn_cfg["optimization"]["weight_decay"]
+    )
     n_params = get_n_params(model)
     print(f"Parameters: {n_params}")
 
@@ -122,12 +130,14 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         j = 0
         pbar = tqdm(trn_loader, total=len(trn_loader))
         for x, cls in pbar:
-            signal = x["signal"].to(device)
+            in_signal = x["in_signal"].to(device)
+            out_signal = x["out_signal"].to(device)
             mask = x["mask"].to(device)
-            if i == 0 and j == 0:
-                for k in range(signal.shape[0]):
+            mask_pos = x["mask_pos"].to(device)
+            if i == 0 and j == 0 and trn_cfg["dataset"]["plot"]:
+                for k in range(in_signal.shape[0]):
                     plot = trn_data.plot_batch(
-                        signal[k].cpu(),
+                        out_signal[k].cpu(),
                         cls[k].cpu(),
                         mask[k].cpu(),
                         drop_zero=False
@@ -136,13 +146,14 @@ def train(trn_cfg_path: str, model_cfg_path: str):
 
 
             # need [batch size, chunks, channels, chunk size]
-            signal = torch.permute(signal,[0, 1, 3, 2])
+            out_signal = torch.permute(out_signal,[0, 1, 3, 2])
+            in_signal = torch.permute(in_signal, [0, 1, 3, 2])
 
             optimizer.zero_grad()
-            y_hat = model(signal, mask=mask)
+            y_hat = model(in_signal)
 
 
-            loss = calculate_masked_loss(y_hat, signal, mask)
+            loss = calculate_masked_loss(y_hat, out_signal, mask)
 
             # Implement backward pass, zero gradient etc...
             # Implement the optimizer and loss function
@@ -159,7 +170,8 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             j += 1
 
         avg_epoch_loss = epoch_loss / len(trn_loader)
-        run.log({"train/loss":avg_epoch_loss})
+
+        run.log({"train/loss": avg_epoch_loss})
         print(
             "\ntrain/loss {:.5f} ".format(avg_epoch_loss)
         )
@@ -177,22 +189,23 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         avg_val_loss = 0
         val_cntr = 0
         for x, cls in val_pbar:
-
-            signal = x["signal"].to(device)
+            in_signal = x["in_signal"].to(device)
+            out_signal = x["out_signal"].to(device)
             mask = x["mask"].to(device)
 
             # need [batch size, chunks, channels, chunk size]
-            signal = torch.permute(signal, [0, 1, 3, 2])
+            out_signal = torch.permute(out_signal, [0, 1, 3, 2])
+            in_signal = torch.permute(in_signal, [0, 1, 3, 2])
 
-            y_hat = model(signal, mask=mask)
-            val_loss = calculate_masked_loss(y_hat, signal, mask).detach()
+            y_hat = model(in_signal)
+            val_loss = calculate_masked_loss(y_hat, out_signal, mask).detach()
 
             avg_val_loss += val_loss
 
             if val_cntr == 0:
                 # plot first batch only
                 fig = plot_batch_pred(
-                    signal.detach().cpu(),
+                    out_signal.detach().cpu(),
                     y_hat[:, 1:, ::].detach().cpu(),
                     mask.detach().cpu(),
                     k=50

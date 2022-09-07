@@ -230,8 +230,17 @@ class SelfSupervisedPumpDataset(PumpDataset):
 
         # generate mask tokens
         mask = torch.Tensor(np.random.binomial(1, p=self.mask_prob, size=n_chunks)).long()
+        mask_pos = torch.where(mask)[0]
 
-        return {"signal": signal, "mask": mask, "sig_label": sig_label}, label
+        input = {
+                "in_signal": signal,
+                "out_signal": signal.clone().detach(),
+                "mask": mask,
+                "mask_pos": mask_pos,
+                "sig_label": sig_label
+               }
+
+        return input, label
 
 
 if __name__ == "__main__":
