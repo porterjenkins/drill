@@ -15,9 +15,26 @@ from train.train_utils import RunningAvgQueue
 
 def calculate_masked_loss(y_hat, y, mask):
     y_for_loss = get_masked_tensor(mask, y.flatten(2))
-    y_hat_for_loss = get_masked_tensor(mask, y_hat[:, 1:, :])
-    objective = torch.mean(torch.norm(y_for_loss - y_hat_for_loss, p=2, dim=-1))
-    return objective
+    #y_hat_for_loss = get_masked_tensor(mask, y_hat[:, 1:, :])
+    y_hat_for_loss = get_masked_tensor(mask, y_hat)
+    #objective = torch.mean(torch.norm(y.flatten(2) - y_hat[:, 1:, :], p=2, dim=-1))
+
+    max_term = torch.norm(
+        torch.max(y_for_loss, dim=-1)[0] - torch.max(y_hat_for_loss, dim=-1)[0],
+        dim=-1
+    )
+
+    min_term = torch.norm(
+        torch.min(y_for_loss, dim=-1)[0] - torch.min(y_hat_for_loss, dim=-1)[0],
+        dim=-1
+    )
+
+    lse = torch.norm(y_for_loss - y_hat_for_loss, p=2, dim=-1)
+
+    objective = lse + 0.5*max_term + 0.5*min_term
+
+
+    return torch.mean(objective)
 
 def plot_batch_pred(signal, pred, mask, k=10, figsize=(12, 5)):
     bs = signal.shape[0]
@@ -65,14 +82,19 @@ def train(trn_cfg_path: str, model_cfg_path: str):
     )
 
     model = build(model_cfg, use_cuda=trn_cfg["optimization"]["cuda"])
-    optimizer = torch.optim.Adam(model.parameters(), lr=float(trn_cfg["optimization"]["lr"]))
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=float(trn_cfg["optimization"]["lr"]),
+        weight_decay=trn_cfg["optimization"]["weight_decay"]
+    )
 
     trn_data = SelfSupervisedPumpDataset(
         ctrl_fpath=trn_cfg["dataset"]["ctrl_file"],
         data_dir=trn_cfg["dataset"]["data_dir"],
         chunk_length=model_cfg["meta"]["seq_len"],
         rand_chunk_rate=trn_cfg["dataset"]["rand_chunk_prob"],
-        mask_prob=model_cfg["meta"]["mask_prob"]
+        mask_prob=model_cfg["meta"]["mask_prob"],
+        max_seq_len=model_cfg["meta"]["max_len"]
     )
     trn_loader = DataLoader(
         trn_data,
@@ -87,10 +109,11 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         data_dir=trn_cfg["dataset"]["data_dir"],
         chunk_length=model_cfg["meta"]["seq_len"],
         rand_chunk_rate=trn_cfg["dataset"]["rand_chunk_prob"],
-        mask_prob=model_cfg["meta"]["mask_prob"]
+        mask_prob=model_cfg["meta"]["mask_prob"],
+        max_seq_len=model_cfg["meta"]["max_len"]
     )
     val_loader = DataLoader(
-        trn_data,
+        val_data,
         shuffle=False,
         batch_size=trn_cfg["optimization"]["val_batch_size"],
         collate_fn=collate_padded,
@@ -109,7 +132,11 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         pbar = tqdm(trn_loader, total=len(trn_loader))
         for x, cls in pbar:
             signal = x["signal"].to(device)
+            bs, n_chunk, chunk_size, _ = signal.shape
+            out_signal = x["out_signal"].to(device)
             mask = x["mask"].to(device)
+            pos = x["pos"].to(device).squeeze(-1)
+            #pos = SelfSupervisedPumpDataset.calc_encoded_positions(bs, n_chunk, 2)
             """if i == 0 and j == 0:
                 for k in range(signal.shape[0]):
                     plot = trn_data.plot_batch(
@@ -123,12 +150,14 @@ def train(trn_cfg_path: str, model_cfg_path: str):
 
             # need [batch size, chunks, channels, chunk size]
             signal = torch.permute(signal,[0, 1, 3, 2])
+            out_signal = torch.permute(out_signal, [0, 1, 3, 2])
 
             optimizer.zero_grad()
-            y_hat = model(signal, mask)
+            y_hat = model(signal, pos=pos, mask=mask)
 
 
-            loss = calculate_masked_loss(y_hat, signal, mask)
+
+            loss = calculate_masked_loss(y_hat, out_signal, mask)
 
             # Implement backward pass, zero gradient etc...
             # Implement the optimizer and loss function
@@ -142,7 +171,19 @@ def train(trn_cfg_path: str, model_cfg_path: str):
 
             epoch_loss += loss.detach()
 
+            if j == 0:
+                fig = plot_batch_pred(
+                    out_signal.detach().cpu(),
+                    #y_hat[:, 1:, ::].detach().cpu(),
+                    y_hat.detach().cpu(),
+                    mask.detach().cpu(),
+                    k=50
+                )
+                run.log({"train/prediction": wandb.Image(fig)})
+
+
             j += 1
+
 
         avg_epoch_loss = epoch_loss / len(trn_loader)
         run.log({"train/loss":avg_epoch_loss})
@@ -173,11 +214,14 @@ def train(trn_cfg_path: str, model_cfg_path: str):
 
             signal = x["signal"].to(device)
             mask = x["mask"].to(device)
+            out_signal = x["out_signal"].to(device)
+            pos = x["pos"].to(device).squeeze(-1)
 
             # need [batch size, chunks, channels, chunk size]
             signal = torch.permute(signal, [0, 1, 3, 2])
+            out_signal = torch.permute(out_signal, [0, 1, 3, 2])
 
-            y_hat = model(signal, mask)
+            y_hat = model(signal, pos=pos, mask=mask)
             val_loss = calculate_masked_loss(y_hat, signal, mask).detach()
 
             avg_val_loss += val_loss
@@ -185,12 +229,13 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             if val_cntr == 0:
                 # plot first batch only
                 fig = plot_batch_pred(
-                    signal.detach().cpu(),
-                    y_hat[:, 1:, ::].detach().cpu(),
+                    out_signal.detach().cpu(),
+                    #y_hat[:, 1:, ::].detach().cpu(),
+                    y_hat.detach().cpu(),
                     mask.detach().cpu(),
                     k=50
                 )
-                run.log({"prediction": wandb.Image(fig)})
+                run.log({"val/prediction": wandb.Image(fig)})
 
             #val_targets.append(signal.detach())
             #val_pred.append(y_hat.detach())

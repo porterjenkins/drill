@@ -15,7 +15,8 @@ class SeqTransformer(nn.Module):
             head: RegressorHead,
             dim: int,
             seq_len: int = 32,
-            use_cuda: bool = False
+            use_cuda: bool = False,
+            max_len=512
 
     ):
         super(SeqTransformer, self).__init__()
@@ -24,6 +25,7 @@ class SeqTransformer(nn.Module):
         self.head = head
         self.mask_token = nn.Embedding(1, seq_len)
         self.cls_token = nn.Embedding(1, dim)
+        self.pos_embed = nn.Embedding(max_len + 2, dim, padding_idx=0)
 
         if use_cuda:
             self = self.cuda()
@@ -41,20 +43,25 @@ class SeqTransformer(nn.Module):
         :param mask: torch.Tensor: int64): dims (bs, chunks)
         :return:
         """
+
         if mask is not None:
-            h_mask = self.mask_token(torch.zeros(1).long())
+            h_mask = self.mask_token(torch.zeros(1).long().to(self.device))
             mask_idx = torch.where(mask)
             seq[mask_idx[0], mask_idx[1], :, :] = h_mask
         # CNN encoding
         h = self.encoder(seq)
-        if pos is not None:
-            h = h + pos
+        #h = self.linear(seq).squeeze(2)
+
         # append cls token
         bs = seq.shape[0]
 
         #the next two lines add the extra cls token to the end of each sequence (changing the dim from (bs, chunks, channels, chunk_size) to (bs, chunks, channels + 1, chunk_size)
-        cls = self.cls_token(torch.zeros(bs).long().to(self.device))
-        h = torch.cat([cls.unsqueeze(1), h], dim=1)
+        #cls = self.cls_token(torch.zeros(bs).long().to(self.device))
+        #h = torch.cat([cls.unsqueeze(1), h], dim=1)
+
+        if pos is not None:
+            h_pos = self.pos_embed(pos)
+            h = h + h_pos
 
         h = self.transformer(h)
         output = self.head(h)
@@ -63,6 +70,7 @@ class SeqTransformer(nn.Module):
 def build(cfg: dict, use_cuda: bool):
 
     output_dim = cfg["encoder"]["n_channels"]*cfg["meta"]["seq_len"]
+    #output_dim = 3
 
     encoder = ConvEncoderNetwork(
         n_channels=cfg["encoder"]["n_channels"],
@@ -78,16 +86,18 @@ def build(cfg: dict, use_cuda: bool):
         input_size=cfg["meta"]["feat_size"],
         reg_layers=cfg["regressor"]["reg_layers"],
         n_classes=output_dim,
-        dropout_prob=cfg["regressor"]["dropout"]
+        dropout_prob=cfg["regressor"]["dropout"],
+        use_cuda=use_cuda
     )
 
     model = SeqTransformer(
         conv_encoder=encoder,
         transformer=transformer,
         head=head,
-        dim=512,
-        seq_len=32,
-        use_cuda=use_cuda
+        dim=cfg["meta"]["feat_size"],
+        seq_len=cfg["meta"]["seq_len"],
+        use_cuda=use_cuda,
+        max_len=cfg["meta"]["max_len"]
     )
     return model
 

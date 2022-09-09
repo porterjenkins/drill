@@ -132,7 +132,8 @@ class SelfSupervisedPumpDataset(PumpDataset):
             chunk_length: int = 16,
             rand_chunk_rate: float = 0.2,
             mask_prob: float = 0.15,
-            transform: Optional[Callable] = None
+            transform: Optional[Callable] = None,
+            max_seq_len: int = 512
     ):
 
         super(SelfSupervisedPumpDataset, self).__init__(
@@ -143,6 +144,7 @@ class SelfSupervisedPumpDataset(PumpDataset):
         self.chunk_length = chunk_length
         self.rand_chunk_rate = rand_chunk_rate
         self.mask_prob = mask_prob
+        self.max_seq_len = max_seq_len
 
     @staticmethod
     def get_chunks(signal, chunk_length, rand_pct=0.1):
@@ -213,7 +215,6 @@ class SelfSupervisedPumpDataset(PumpDataset):
                 c=c,
                 alpha=0.5
             )
-
             start_idx += chunk_size
         return fig
 
@@ -223,7 +224,16 @@ class SelfSupervisedPumpDataset(PumpDataset):
     def __getitem__(self, idx):
         signal, label = PumpDataset.__getitem__(self, idx)
         signal, n_chunks, rand = self.get_chunks(signal, self.chunk_length, self.rand_chunk_rate)
+
+        if n_chunks > self.max_seq_len:
+            # random start
+            start_idx = np.random.randint(0, n_chunks - self.max_seq_len)
+            end_idx = start_idx + self.max_seq_len
+            signal = signal[start_idx:end_idx, :, :]
+            n_chunks = self.max_seq_len
+
         label = torch.Tensor(np.repeat(label, n_chunks))
+
 
         # TODO: concat tensors
         signal = torch.Tensor(signal).float()
@@ -232,7 +242,15 @@ class SelfSupervisedPumpDataset(PumpDataset):
         # generate mask tokens
         mask = torch.Tensor(np.random.binomial(1, p=self.mask_prob, size=n_chunks)).long()
 
-        return {"signal": signal, "mask": mask}, label
+        pos = torch.arange(1, n_chunks+1).long()
+        #pos = self.calc_encoded_positions(1, n_chunks, 512)
+        # denoiuse
+        #n, s, c = signal.shape
+        #eps =  torch.randn((n, s, c)) / 10
+        #signal += eps
+
+
+        return {"signal": signal, "mask": mask, "out_signal": signal.clone().detach(), "pos": pos}, label
 
 
 if __name__ == "__main__":
