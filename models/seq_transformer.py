@@ -33,7 +33,6 @@ class SeqTransformer(nn.Module):
         else:
             self.device = torch.device('cpu')
 
-        stop = 0
 
     def forward(self, seq: torch.Tensor, pos: Optional[torch.Tensor] = None, mask: Optional[torch.Tensor] = None):
         """

@@ -13,7 +13,7 @@ from utils import get_yaml_cfg
 from train.train_utils import RunningAvgQueue
 
 
-def calculate_masked_loss(y_hat, y, mask):
+def calculate_masked_loss(y_hat, y, mask, theta):
     y_for_loss = get_masked_tensor(mask, y.flatten(2))
     #y_hat_for_loss = get_masked_tensor(mask, y_hat[:, 1:, :])
     y_hat_for_loss = get_masked_tensor(mask, y_hat)
@@ -29,9 +29,11 @@ def calculate_masked_loss(y_hat, y, mask):
         dim=-1
     )
 
+    theta_term = torch.norm(get_masked_tensor(mask, theta[:, :, 1]), p=2, dim=-1)
+
     lse = torch.norm(y_for_loss - y_hat_for_loss, p=2, dim=-1)
 
-    objective = lse + 0.5*max_term + 0.5*min_term
+    objective = lse + 0.5*max_term + 0.5*min_term - 0.5*torch.log(theta_term)
 
 
     return torch.mean(objective)
@@ -153,11 +155,11 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             out_signal = torch.permute(out_signal, [0, 1, 3, 2])
 
             optimizer.zero_grad()
-            y_hat = model(signal, pos=pos, mask=mask)
+            y_hat, theta = model(signal, pos=pos, mask=mask)
 
 
 
-            loss = calculate_masked_loss(y_hat, out_signal, mask)
+            loss = calculate_masked_loss(y_hat, out_signal, mask, theta)
 
             # Implement backward pass, zero gradient etc...
             # Implement the optimizer and loss function
@@ -167,7 +169,7 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             pbar.set_description(
                 "train loss: {:.5f}".format(loss.detach())
             )
-            run.log({"train/batch-loss": loss.detach()})
+            run.log({"train/batch-loss": loss.detach(), "train/theta": theta[:, :, 1].mean()})
 
             epoch_loss += loss.detach()
 
@@ -221,8 +223,8 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             signal = torch.permute(signal, [0, 1, 3, 2])
             out_signal = torch.permute(out_signal, [0, 1, 3, 2])
 
-            y_hat = model(signal, pos=pos, mask=mask)
-            val_loss = calculate_masked_loss(y_hat, signal, mask).detach()
+            y_hat, theta = model(signal, pos=pos, mask=mask)
+            val_loss = calculate_masked_loss(y_hat, signal, mask, theta).detach()
 
             avg_val_loss += val_loss
 

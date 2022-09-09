@@ -26,7 +26,7 @@ class SineOutput(nn.Module):
         x = x.repeat((bs, n_seq, 1)).to(self.device)
 
         a = h[:, :, 0].unsqueeze(-1)
-        b = h[:, :, 1].unsqueeze(-1)
+        b = torch.clamp(h[:, :, 1].unsqueeze(-1), min=-5, max=-5)
         c = h[:, :, 2].unsqueeze(-1)
         d = h[:, :, 3].unsqueeze(-1)
 
@@ -72,7 +72,7 @@ class RegressorHead(nn.Module):
         h = self.weights(x)
         h = self.output(h)
         y_hat = self.sine(h)
-        return y_hat
+        return y_hat, h
 
 
 if __name__ == "__main__":
