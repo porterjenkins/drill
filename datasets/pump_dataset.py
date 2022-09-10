@@ -190,9 +190,9 @@ class SelfSupervisedPumpDataset(PumpDataset):
 
 
         fig = plt.figure(figsize=figsize)
-        cls = torch.max(y).data.numpy()
-        if cls > 0:
-            plt.title(f"{SelfSupervisedPumpDataset.idx_to_cls[int(cls)]}")
+
+        cls = int(y) + 1 # undo zero-index (file is 1-indexed)
+        plt.title(f"{SelfSupervisedPumpDataset.idx_to_cls[cls]}")
         for j in range(x.shape[0]):
             chunk_color = np.random.rand(3, )
             is_mask = bool(mask[j])
@@ -215,6 +215,7 @@ class SelfSupervisedPumpDataset(PumpDataset):
                 c=c,
                 alpha=0.5
             )
+
             start_idx += chunk_size
         return fig
 
@@ -237,7 +238,6 @@ class SelfSupervisedPumpDataset(PumpDataset):
 
         # TODO: concat tensors
         signal = torch.Tensor(signal).float()
-        rand = torch.Tensor(rand).float()
 
         # generate mask tokens
         mask = torch.Tensor(np.random.binomial(1, p=self.mask_prob, size=n_chunks)).long()

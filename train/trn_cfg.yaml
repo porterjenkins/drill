@@ -2,11 +2,12 @@ wandb:
   entity: prj-research
   project: sequence-transformer
   group: pretraining
-  name: they-come-from-uranus # can name wandb run
+  name: pretraining # can name wandb run
 dataset:
   ctrl_file: '/home/porter/code/drill/Preprocessing/key_train_08-25-22.csv'
   data_dir: '/home/porter/code/drill/Preprocessing/Segments_Labeled_08-25-22'
   rand_chunk_prob: 0.0
+  plot: True
 optimization:
   n_epochs: 300
   lr: 1e-4
@@ -15,3 +16,4 @@ optimization:
   ma_lookback: 8
   cuda: True
   weight_decay: 0.1
+  chkp_dir : "./chkp"
