@@ -35,8 +35,7 @@ def calculate_masked_loss(y_hat, y, mask, theta):
 
     objective = lse + 0.5*max_term + 0.5*min_term - 0.5*torch.log(theta_term)
 
-
-    return torch.mean(objective)
+    return torch.mean(objective), lse, min_term, max_term, theta_term
 
 def plot_batch_pred(signal, pred, mask, k=10, figsize=(12, 5)):
     bs = signal.shape[0]
@@ -159,7 +158,7 @@ def train(trn_cfg_path: str, model_cfg_path: str):
 
 
 
-            loss = calculate_masked_loss(y_hat, out_signal, mask, theta)
+            loss, lse, min_term, max_term, theta_term = calculate_masked_loss(y_hat, out_signal, mask, theta)
 
             # Implement backward pass, zero gradient etc...
             # Implement the optimizer and loss function
@@ -169,7 +168,16 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             pbar.set_description(
                 "train loss: {:.5f}".format(loss.detach())
             )
-            run.log({"train/batch-loss": loss.detach(), "train/theta": theta[:, :, 1].mean()})
+            run.log(
+                {
+                    "train/batch-loss": loss.detach(),
+                    "train/loss_l2": lse.detach().mean(),
+                    "train/loss_min": min_term.detach().mean(),
+                    "train/loss_max": max_term.detach().mean(),
+                    "train/loss_theta": -theta_term.detach().mean(),
+                    "train/theta": theta[:, :, 1].mean()
+                }
+            )
 
             epoch_loss += loss.detach()
 
@@ -224,9 +232,9 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             out_signal = torch.permute(out_signal, [0, 1, 3, 2])
 
             y_hat, theta = model(signal, pos=pos, mask=mask)
-            val_loss = calculate_masked_loss(y_hat, signal, mask, theta).detach()
+            val_loss, lse, min_term, max_term, theta_term = calculate_masked_loss(y_hat, signal, mask, theta)
 
-            avg_val_loss += val_loss
+            avg_val_loss += val_loss.detach()
 
             if val_cntr == 0:
                 # plot first batch only
