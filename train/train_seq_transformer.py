@@ -170,7 +170,12 @@ def train(trn_cfg_path: str, model_cfg_path: str):
 
 
 
-            loss, lse, min_term, max_term, theta_term = calculate_masked_loss(y_hat, out_signal, mask, theta)
+            loss, lse, min_term, max_term, theta_term = calculate_masked_loss(
+                y_hat[:, 1:, :],
+                out_signal,
+                mask,
+                theta
+            )
 
             # Implement backward pass, zero gradient etc...
             # Implement the optimizer and loss function
@@ -196,8 +201,7 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             if j == 0:
                 fig = plot_batch_pred(
                     out_signal.detach().cpu(),
-                    #y_hat[:, 1:, ::].detach().cpu(),
-                    y_hat.detach().cpu(),
+                    y_hat[:, 1:, ::].detach().cpu(),
                     mask.detach().cpu(),
                     k=50
                 )
@@ -237,7 +241,12 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             out_signal = torch.permute(out_signal, [0, 1, 3, 2])
 
             y_hat, theta = model(signal, pos=pos, mask=mask)
-            val_loss, lse, min_term, max_term, theta_term = calculate_masked_loss(y_hat, signal, mask, theta)
+            val_loss, lse, min_term, max_term, theta_term = calculate_masked_loss(
+                y_hat[:, 1:, :],
+                signal,
+                mask,
+                theta
+            )
 
             avg_val_loss += val_loss.detach()
 
@@ -245,8 +254,7 @@ def train(trn_cfg_path: str, model_cfg_path: str):
                 # plot first batch only
                 fig = plot_batch_pred(
                     out_signal.detach().cpu(),
-                    #y_hat[:, 1:, ::].detach().cpu(),
-                    y_hat.detach().cpu(),
+                    y_hat[:, 1:, ::].detach().cpu(),
                     mask.detach().cpu(),
                     k=50
                 )
