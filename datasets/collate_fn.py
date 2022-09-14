@@ -4,10 +4,10 @@ import torch
 from datasets.dataset_utils import get_zero_padded_batch
 
 def collate_padded(batch: List[Dict]):
-    _keys_to_stack = set([])
+    _keys_to_stack = set(["targets"])
     _list_keys_flatten = set()
     _list_keys = set()
-    _zero_pad_keys = set(["signal", "mask", "targets", "out_signal", "pos"])
+    _zero_pad_keys = set(["signal", "mask", "out_signal", "pos", "sig_label"])
 
     if batch is None or len(batch) == 0:
         return None

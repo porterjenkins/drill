@@ -58,8 +58,8 @@ class SeqTransformer(nn.Module):
         bs = seq.shape[0]
 
         #the next two lines add the extra cls token to the end of each sequence (changing the dim from (bs, chunks, channels, chunk_size) to (bs, chunks, channels + 1, chunk_size)
-        #cls = self.cls_token(torch.zeros(bs).long().to(self.device))
-        #h = torch.cat([cls.unsqueeze(1), h], dim=1)
+        cls = self.cls_token(torch.zeros(bs).long().to(self.device))
+        h = torch.cat([cls.unsqueeze(1), h], dim=1)
 
         if pos is not None:
             h_pos = self.pos_embed(pos)
@@ -68,7 +68,7 @@ class SeqTransformer(nn.Module):
         h = self.transformer(h)
 
         if self.is_classifer:
-            output = self.head(h[:, 0, :])
+            output = self.head(h[:, 1:, :])
         else:
             output = self.head(h)
         return output
@@ -124,6 +124,17 @@ def build_cls(cfg: dict, use_cuda: bool):
         n_classes=cfg["classifier"]["n_cls"],
         dropout_prob=cfg["classifier"]["dropout"]
     )
+
+    model = SeqTransformer(
+        conv_encoder=encoder,
+        transformer=transformer,
+        head=head,
+        dim=cfg["meta"]["feat_size"],
+        seq_len=cfg["meta"]["seq_len"],
+        use_cuda=use_cuda,
+        max_len=cfg["meta"]["max_len"]
+    )
+    return model
 
 
 def get_masked_tensor(mask, src):

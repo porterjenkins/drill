@@ -233,7 +233,7 @@ class SelfSupervisedPumpDataset(PumpDataset):
             signal = signal[start_idx:end_idx, :, :]
             n_chunks = self.max_seq_len
 
-        label = torch.Tensor(np.repeat(label, n_chunks))
+        sig_label = torch.Tensor(np.repeat(label, n_chunks)).long()
 
 
         # TODO: concat tensors
@@ -242,15 +242,22 @@ class SelfSupervisedPumpDataset(PumpDataset):
         # generate mask tokens
         mask = torch.Tensor(np.random.binomial(1, p=self.mask_prob, size=n_chunks)).long()
 
-        pos = torch.arange(1, n_chunks+1).long()
+        pos = torch.arange(1, n_chunks+2).long()
         #pos = self.calc_encoded_positions(1, n_chunks, 512)
         # denoiuse
         #n, s, c = signal.shape
         #eps =  torch.randn((n, s, c)) / 10
         #signal += eps
 
+        x = {
+                "signal": signal,
+                "mask": mask,
+                "out_signal": signal.clone().detach(),
+                "pos": pos,
+                "sig_label": sig_label
+        }
 
-        return {"signal": signal, "mask": mask, "out_signal": signal.clone().detach(), "pos": pos}, label
+        return x, torch.Tensor([label]).long()
 
 
 if __name__ == "__main__":

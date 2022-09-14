@@ -18,7 +18,8 @@ from train.train_utils import RunningAvgQueue
 CROSS_ENTROPY = nn.CrossEntropyLoss()
 
 def get_loss(y_hat, y):
-    loss = CROSS_ENTROPY(y_hat, y)
+    #loss = CROSS_ENTROPY(y_hat, y)
+    loss = CROSS_ENTROPY(y_hat.flatten(0, 1), y.flatten(0, 1))
     return loss
 
 def get_acc(y_hat, y):
@@ -30,7 +31,7 @@ def get_acc(y_hat, y):
         y = y.cpu().data.numpy()
 
     pred = np.argmax(y_hat, axis=-1)
-    acc = np.mean(pred == y)
+    acc = np.mean(pred.flatten() == y.flatten())
 
     return acc
 
@@ -102,7 +103,8 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         data_dir=trn_cfg["dataset"]["data_dir"],
         chunk_length=model_cfg["meta"]["seq_len"],
         rand_chunk_rate=trn_cfg["dataset"]["rand_chunk_prob"],
-        mask_prob=model_cfg["meta"]["mask_prob"]
+        mask_prob=model_cfg["meta"]["mask_prob"],
+        max_seq_len=model_cfg["meta"]["max_len"]
     )
     trn_loader = DataLoader(
         trn_data,
@@ -117,7 +119,8 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         data_dir=trn_cfg["dataset"]["data_dir"],
         chunk_length=model_cfg["meta"]["seq_len"],
         rand_chunk_rate=trn_cfg["dataset"]["rand_chunk_prob"],
-        mask_prob=model_cfg["meta"]["mask_prob"]
+        mask_prob=model_cfg["meta"]["mask_prob"],
+        max_seq_len=model_cfg["meta"]["max_len"]
     )
     val_loader = DataLoader(
         val_data,
@@ -139,7 +142,11 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         for x, cls in pbar:
             signal = x["signal"].to(device)
             cls = cls.to(device)
-            """if i == 0 and j == 0:
+            sig_cls = x["sig_label"].to(device)
+            pos = x["pos"].to(device).squeeze(-1)
+            mask= x["mask"]
+
+            if i == 0 and j == 0:
                 for k in range(signal.shape[0]):
                     plot = trn_data.plot_batch(
                         signal[k].cpu(),
@@ -147,17 +154,17 @@ def train(trn_cfg_path: str, model_cfg_path: str):
                         mask[k].cpu(),
                         drop_zero=False
                     )
-                    run.log({"signal": wandb.Image(plot)})"""
+                    run.log({"signal": wandb.Image(plot)})
 
 
             # need [batch size, chunks, channels, chunk size]
             signal = torch.permute(signal,[0, 1, 3, 2])
 
             optimizer.zero_grad()
-            y_hat = model(signal)
+            y_hat = model(signal, pos=pos)
 
 
-            loss = get_loss(y_hat, cls)
+            loss = get_loss(y_hat, sig_cls.squeeze(-1))
 
 
             # Implement backward pass, zero gradient etc...
@@ -165,7 +172,7 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             loss.backward()
             optimizer.step()
 
-            acc = get_acc(y_hat, cls)
+            acc = get_acc(y_hat, sig_cls)
             avg_acc += acc
 
             pbar.set_description(
@@ -200,17 +207,25 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         val_pred = []
         val_masks = []
         avg_val_loss = 0
+        avg_val_acc = 0
         val_cntr = 0
         for x, cls in val_pbar:
 
             signal = x["signal"].to(device)
             cls = cls.to(device)
+            pos = x["pos"].to(device).squeeze(-1)
+            sig_cls = x["sig_label"].to(device)
 
             # need [batch size, chunks, channels, chunk size]
             signal = torch.permute(signal, [0, 1, 3, 2])
 
-            y_hat = model(signal)
-            val_loss = get_loss(y_hat, cls).detach()
+            y_hat = model(signal, pos=pos)
+            val_loss = get_loss(y_hat, sig_cls.squeeze(-1)).detach()
+
+            val_acc = get_acc(y_hat, sig_cls)
+            avg_val_acc += val_acc
+
+
 
             avg_val_loss += val_loss
 
@@ -231,7 +246,8 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             val_cntr += 1
 
         avg_val_loss = avg_val_loss / len(val_loader)
-        run.log({"val/loss": avg_val_loss})
+        avg_val_acc = avg_val_acc / len(val_loader)
+        run.log({"val/loss": avg_val_loss, "val/acc": avg_val_acc})
         print(
             "\nval/loss {:.5f} ".format(avg_val_loss)
         )

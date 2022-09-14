@@ -30,11 +30,11 @@ def calculate_masked_loss(y_hat, y, mask, theta):
         dim=-1
     )
 
-    theta_term = torch.norm(get_masked_tensor(mask, theta[:, :, 1]), p=2, dim=-1)
+    theta_term = torch.pow(5.0 - get_masked_tensor(mask, theta[:, :, 1]).mean(), 2)
 
     lse = torch.norm(y_for_loss - y_hat_for_loss, p=2, dim=-1)
 
-    objective = lse + 0.5*max_term + 0.5*min_term - 0.5*torch.log(theta_term)
+    objective = lse + 0.5*max_term + 0.5*min_term + theta_term
 
     return torch.mean(objective), lse, min_term, max_term, theta_term
 
@@ -183,10 +183,10 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             run.log(
                 {
                     "train/batch-loss": loss.detach(),
-                    "train/loss_l2": lse.detach().mean(),
+                    "train/loss_lse": lse.detach().mean().data.cpu().data.numpy(),
                     "train/loss_min": min_term.detach().mean(),
                     "train/loss_max": max_term.detach().mean(),
-                    "train/loss_theta": -theta_term.detach().mean(),
+                    "train/loss_theta": theta_term.detach().mean(),
                     "train/theta": theta[:, :, 1].mean()
                 }
             )
