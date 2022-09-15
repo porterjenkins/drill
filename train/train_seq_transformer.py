@@ -11,32 +11,16 @@ from datasets.pump_dataset import SelfSupervisedPumpDataset
 from datasets.collate_fn import collate_padded
 from models.seq_transformer import build_reg, get_masked_tensor
 from utils import get_yaml_cfg, get_n_params
-from train.train_utils import RunningAvgQueue
+from train.train_utils import get_sine_from_theta
 
 
-def calculate_masked_loss(y_hat, y, mask, theta):
-    y_for_loss = get_masked_tensor(mask, y.flatten(2))
-    #y_hat_for_loss = get_masked_tensor(mask, y_hat[:, 1:, :])
-    y_hat_for_loss = get_masked_tensor(mask, y_hat)
-    #objective = torch.mean(torch.norm(y.flatten(2) - y_hat[:, 1:, :], p=2, dim=-1))
+def calculate_masked_loss(theta_hat, theta, mask):
+    y_for_loss = get_masked_tensor(mask, theta)
+    y_hat_for_loss = get_masked_tensor(mask, theta_hat)
 
-    max_term = torch.norm(
-        torch.max(y_for_loss, dim=-1)[0] - torch.max(y_hat_for_loss, dim=-1)[0],
-        dim=-1
-    )
+    loss = torch.norm(y_for_loss - y_hat_for_loss, p=2, dim=-1)
 
-    min_term = torch.norm(
-        torch.min(y_for_loss, dim=-1)[0] - torch.min(y_hat_for_loss, dim=-1)[0],
-        dim=-1
-    )
-
-    theta_term = torch.pow(5.0 - get_masked_tensor(mask, theta[:, :, 1]).mean(), 2)
-
-    lse = torch.norm(y_for_loss - y_hat_for_loss, p=2, dim=-1)
-
-    objective = lse + 0.5*max_term + 0.5*min_term + theta_term
-
-    return torch.mean(objective), lse, min_term, max_term, theta_term
+    return torch.mean(loss)
 
 def init_chkp_dir(chkp, run_name):
     if not os.path.exists(chkp):
@@ -150,6 +134,7 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             out_signal = x["out_signal"].to(device)
             mask = x["mask"].to(device)
             pos = x["pos"].to(device).squeeze(-1)
+            theta = x["theta"].to(device)
             """if i == 0 and j == 0:
                 for k in range(signal.shape[0]):
                     plot = trn_data.plot_batch(
@@ -166,15 +151,14 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             out_signal = torch.permute(out_signal, [0, 1, 3, 2])
 
             optimizer.zero_grad()
-            y_hat, theta = model(signal, pos=pos, mask=mask)
+            theta_hat = model(signal, pos=pos, mask=mask)
 
 
 
-            loss, lse, min_term, max_term, theta_term = calculate_masked_loss(
-                y_hat[:, 1:, :],
-                out_signal,
+            loss = calculate_masked_loss(
+                theta_hat[:, 1:, :],
+                theta,
                 mask,
-                theta
             )
 
             # Implement backward pass, zero gradient etc...
@@ -188,20 +172,24 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             run.log(
                 {
                     "train/batch-loss": loss.detach(),
-                    "train/loss_lse": lse.detach().mean().data.cpu().data.numpy(),
-                    "train/loss_min": min_term.detach().mean(),
-                    "train/loss_max": max_term.detach().mean(),
-                    "train/loss_theta": theta_term.detach().mean(),
-                    "train/theta": theta[:, :, 1].mean()
-                }
+                    #"train/loss_lse": lse.detach().mean().data.cpu().data.numpy(),
+                    #"train/loss_min": min_term.detach().mean(),
+                    #"train/loss_max": max_term.detach().mean(),
+                    #"train/loss_theta": theta_term.detach().mean(),
+                    #"train/theta": theta[:, :, 1].mean()
+                }   
             )
 
             epoch_loss += loss.detach()
 
             if j == 0:
+                y_hat_sine = get_sine_from_theta(
+                    theta=theta_hat[:, 1:, ::].detach().cpu(),
+                    seq_len=32
+                )
                 fig = plot_batch_pred(
                     out_signal.detach().cpu(),
-                    y_hat[:, 1:, ::].detach().cpu(),
+                    y_hat_sine,
                     mask.detach().cpu(),
                     k=50
                 )
@@ -235,26 +223,43 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             mask = x["mask"].to(device)
             out_signal = x["out_signal"].to(device)
             pos = x["pos"].to(device).squeeze(-1)
+            theta = x["theta"].to(device)
 
             # need [batch size, chunks, channels, chunk size]
             signal = torch.permute(signal, [0, 1, 3, 2])
             out_signal = torch.permute(out_signal, [0, 1, 3, 2])
 
-            y_hat, theta = model(signal, pos=pos, mask=mask)
-            val_loss, lse, min_term, max_term, theta_term = calculate_masked_loss(
-                y_hat[:, 1:, :],
-                signal,
+            theta_hat = model(signal, pos=pos, mask=mask)
+
+            val_loss = calculate_masked_loss(
+                theta_hat[:, 1:, :],
+                theta,
                 mask,
-                theta
             )
 
             avg_val_loss += val_loss.detach()
+            """run.log(
+                {
+                    "val/batch-loss": val_loss.detach(),
+                    "val/loss_lse": lse.detach().mean().data.cpu().data.numpy(),
+                    "val/loss_min": min_term.detach().mean(),
+                    "val/loss_max": max_term.detach().mean(),
+                    #"val/loss_theta": theta_term.detach().mean(),
+                    "val/theta": theta[:, :, 1].mean()
+                }
+            )"""
+
+
 
             if val_cntr == 0:
+                y_hat_sine = get_sine_from_theta(
+                    theta=theta_hat[:, 1:, ::].detach().cpu(),
+                    seq_len=32
+                )
                 # plot first batch only
                 fig = plot_batch_pred(
                     out_signal.detach().cpu(),
-                    y_hat[:, 1:, ::].detach().cpu(),
+                    y_hat_sine,
                     mask.detach().cpu(),
                     k=50
                 )
@@ -268,6 +273,8 @@ def train(trn_cfg_path: str, model_cfg_path: str):
 
         avg_val_loss = avg_val_loss / len(val_loader)
         run.log({"val/loss": avg_val_loss})
+
+
         print(
             "\nval/loss {:.5f} ".format(avg_val_loss)
         )

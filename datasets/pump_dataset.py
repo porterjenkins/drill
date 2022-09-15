@@ -2,14 +2,16 @@ import numpy as np
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
-
+import math
 from typing import Callable, Optional
 
+import scipy.optimize as opt
 import torch
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, utils
 
 
+def sine(x,a,b,c,d):
+    return a * np.sin(b*x+c) + d
 
 class PumpDataset(Dataset):
     """Pump dataset."""
@@ -219,8 +221,46 @@ class SelfSupervisedPumpDataset(PumpDataset):
             start_idx += chunk_size
         return fig
 
+    @staticmethod
+    def get_init_sine_params(x, y):
+        # vertical offset
+        d_prime = y.mean()
+        # amplitude
+        a_prime = (y.max() - y.min()) / 2
+        res = y - d_prime
+        asign = np.sign(res)
+        is_change = ((np.roll(asign, 1) - asign) != 0).astype(int)
+        n_change = is_change.sum()
+        change_idx = np.where(is_change)[0]
+        try:
+            first_change = change_idx[0]
+            last_change = change_idx[-1]
+            b_prime = math.pi * n_change / (x[last_change] - x[first_change])
+            c_prime = x[first_change] * b_prime
+        except IndexError:
+            a_prime = 0.0
+            b_prime = 0.0
+            c_prime = 0.0
+        return np.array([a_prime, b_prime, c_prime, d_prime])
 
+    def get_target_params(self, signal):
+        n_chunks, chunk_size, _ = signal.shape
 
+        theta = np.zeros((n_chunks, 4))
+        y_sine = np.zeros((n_chunks, chunk_size))
+
+        for i in range(n_chunks):
+            x = np.arange(chunk_size)
+            y = signal[i].flatten()
+            theta0 = self.get_init_sine_params(x,y)
+            theta_i, cov = opt.curve_fit(sine, x, y, p0=theta0, maxfev=10000)
+            y_pred = sine(x, theta_i[0], theta_i[1], theta_i[2], theta_i[3])
+            theta[i] = theta_i
+            y_sine[i] = y_pred
+            #plt.plot(y, c='blue')
+            #plt.plot(y_pred, c='red')
+            #plt.show()
+        return torch.tensor(theta), torch.tensor(y_sine)
 
     def __getitem__(self, idx):
         signal, label = PumpDataset.__getitem__(self, idx)
@@ -232,6 +272,8 @@ class SelfSupervisedPumpDataset(PumpDataset):
             end_idx = start_idx + self.max_seq_len
             signal = signal[start_idx:end_idx, :, :]
             n_chunks = self.max_seq_len
+
+        theta, y_sine = self.get_target_params(signal)
 
         sig_label = torch.Tensor(np.repeat(label, n_chunks)).long()
 
@@ -254,7 +296,8 @@ class SelfSupervisedPumpDataset(PumpDataset):
                 "mask": mask,
                 "out_signal": signal.clone().detach(),
                 "pos": pos,
-                "sig_label": sig_label
+                "sig_label": sig_label,
+                "theta": theta
         }
 
         return x, torch.Tensor([label]).long()

@@ -25,12 +25,12 @@ class SineOutput(nn.Module):
         x = torch.arange(0, self.seq_len)
         x = x.repeat((bs, n_seq, 1)).to(self.device)
 
-        a = h[:, :, 0].unsqueeze(-1)
-        b = h[:, :, 1].unsqueeze(-1)
-        c = h[:, :, 2].unsqueeze(-1)
-        d = h[:, :, 3].unsqueeze(-1)
+        a = h[:, :, 0].unsqueeze(-1) # amplitude
+        b = h[:, :, 1].unsqueeze(-1) # frequency
+        c = h[:, :, 2].unsqueeze(-1) # horizontal offset
+        d = h[:, :, 3].unsqueeze(-1) # vertical offset
 
-        y = a * torch.sin(x / b + c) + d
+        y = a * torch.sin(b*x + c) + d
 
         return y
 
@@ -48,7 +48,7 @@ class RegressorHead(nn.Module):
         self.dropout_prob = dropout_prob
         self.weights = self._build_mlp(input_size, reg_layers)
         self.output = nn.Linear(self.reg_layers[-1], 4)
-        self.sine = SineOutput(n_classes, use_cuda)
+        #self.sine = SineOutput(n_classes, use_cuda)
 
     def _build_mlp(self, input_size, reg_layers):
         W = []
@@ -70,9 +70,9 @@ class RegressorHead(nn.Module):
 
     def forward(self, x):
         h = self.weights(x)
-        h = self.output(h)
-        y_hat = self.sine(torch.clamp(h, min=-6, max=6))
-        return y_hat, h
+        y_hat = self.output(h)
+        #y_hat = self.sine(torch.clamp(h, min=-6, max=6))
+        return y_hat
 
 
 if __name__ == "__main__":

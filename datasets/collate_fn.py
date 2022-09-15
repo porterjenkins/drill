@@ -7,7 +7,7 @@ def collate_padded(batch: List[Dict]):
     _keys_to_stack = set(["targets"])
     _list_keys_flatten = set()
     _list_keys = set()
-    _zero_pad_keys = set(["signal", "mask", "out_signal", "pos", "sig_label"])
+    _zero_pad_keys = set(["signal", "mask", "out_signal", "pos", "sig_label", "theta"])
 
     if batch is None or len(batch) == 0:
         return None
