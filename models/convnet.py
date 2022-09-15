@@ -23,18 +23,18 @@ class ConvEncoderNetwork(nn.Module):
         self.c1 = nn.Conv1d(A, B, kernel_size=ks1)
         #nn.ReLU(),
         # nn.Dropout(p=0.25),
-        self.c2 = nn.Conv1d(B, C, kernel_size=ks2)
+        #self.c2 = nn.Conv1d(B, C, kernel_size=ks2)
         #nn.ReLU(),
         # nn.Dropout(p=0.25),
-        self.c3 = nn.Conv1d(C, D, kernel_size=ks3, stride=1, padding=1)  # was stride = 2
+        #self.c3 = nn.Conv1d(C, D, kernel_size=ks3, stride=1, padding=1)  # was stride = 2
         #nn.ReLU(),
         # nn.Dropout(p=0.25),
-        self.c4 = nn.Conv1d(D, E, kernel_size=ks3, stride=1, padding=1)  # was stride = 2
+        #self.c4 = nn.Conv1d(D, E, kernel_size=ks3, stride=1, padding=1)  # was stride = 2
         #nn.ReLU(),
         # nn.Dropout(p=0.25),
-        self.c5 = nn.Conv1d(E, F, kernel_size=ks3, stride=1, padding=1)  # was stride = 2
+        #self.c5 = nn.Conv1d(E, F, kernel_size=ks3, stride=1, padding=1)  # was stride = 2
         #)
-        self.linear = nn.Linear(F//2, feat_size)
+        self.linear = nn.Linear(C, feat_size)
         """self.linear = nn.Sequential(
             # nn.Linear(size_in, 100),
             # nn.ReLU(),
@@ -47,11 +47,12 @@ class ConvEncoderNetwork(nn.Module):
         x = x.view(bs*n, c, l)
         h = self.relu(self.c1(x))
         h = self.maxpool(h)
-        h = self.relu(self.c2(h))
-        h = self.maxpool(h)
-        h = self.relu(self.c3(h))
-        h = self.maxpool(h)
-        h = self.relu(self.c4(h))
+        #h = self.relu(self.c2(h))
+
+        #h = self.maxpool(h)
+        #h = self.relu(self.c3(h))
+        #h = self.maxpool(h)
+        #h = self.relu(self.c4(h))
         #h = self.maxpool(h)
         #h = self.relu(self.c5(h))
         #h = self.maxpool(h)

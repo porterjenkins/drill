@@ -134,7 +134,7 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             out_signal = x["out_signal"].to(device)
             mask = x["mask"].to(device)
             pos = x["pos"].to(device).squeeze(-1)
-            theta = x["theta"].to(device)
+            #theta = x["theta"].to(device)
             """if i == 0 and j == 0:
                 for k in range(signal.shape[0]):
                     plot = trn_data.plot_batch(
@@ -151,13 +151,13 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             out_signal = torch.permute(out_signal, [0, 1, 3, 2])
 
             optimizer.zero_grad()
-            theta_hat = model(signal, pos=pos, mask=mask)
+            y_hat = model(signal, pos=pos, mask=mask)
 
 
 
             loss = calculate_masked_loss(
-                theta_hat[:, 1:, :],
-                theta,
+                y_hat[:, 1:, :],
+                out_signal,
                 mask,
             )
 
@@ -183,13 +183,13 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             epoch_loss += loss.detach()
 
             if j == 0:
-                y_hat_sine = get_sine_from_theta(
+                """y_hat_sine = get_sine_from_theta(
                     theta=theta_hat[:, 1:, ::].detach().cpu(),
                     seq_len=32
-                )
+                )"""
                 fig = plot_batch_pred(
                     out_signal.detach().cpu(),
-                    y_hat_sine,
+                    y_hat[:, 1:, :].detach().cpu(),
                     mask.detach().cpu(),
                     k=50
                 )
@@ -223,17 +223,17 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             mask = x["mask"].to(device)
             out_signal = x["out_signal"].to(device)
             pos = x["pos"].to(device).squeeze(-1)
-            theta = x["theta"].to(device)
+            #theta = x["theta"].to(device)
 
             # need [batch size, chunks, channels, chunk size]
             signal = torch.permute(signal, [0, 1, 3, 2])
             out_signal = torch.permute(out_signal, [0, 1, 3, 2])
 
-            theta_hat = model(signal, pos=pos, mask=mask)
+            y_hat = model(signal, pos=pos, mask=mask)
 
             val_loss = calculate_masked_loss(
-                theta_hat[:, 1:, :],
-                theta,
+                y_hat[:, 1:, :],
+                out_signal,
                 mask,
             )
 
@@ -252,14 +252,14 @@ def train(trn_cfg_path: str, model_cfg_path: str):
 
 
             if val_cntr == 0:
-                y_hat_sine = get_sine_from_theta(
+                """y_hat_sine = get_sine_from_theta(
                     theta=theta_hat[:, 1:, ::].detach().cpu(),
                     seq_len=32
-                )
+                )"""
                 # plot first batch only
                 fig = plot_batch_pred(
                     out_signal.detach().cpu(),
-                    y_hat_sine,
+                    y_hat[:, 1:, :].detach().cpu(),
                     mask.detach().cpu(),
                     k=50
                 )

@@ -273,7 +273,7 @@ class SelfSupervisedPumpDataset(PumpDataset):
             signal = signal[start_idx:end_idx, :, :]
             n_chunks = self.max_seq_len
 
-        theta, y_sine = self.get_target_params(signal)
+        #theta, y_sine = self.get_target_params(signal)
 
         sig_label = torch.Tensor(np.repeat(label, n_chunks)).long()
 
@@ -297,7 +297,7 @@ class SelfSupervisedPumpDataset(PumpDataset):
                 "out_signal": signal.clone().detach(),
                 "pos": pos,
                 "sig_label": sig_label,
-                "theta": theta
+                #"theta": theta
         }
 
         return x, torch.Tensor([label]).long()

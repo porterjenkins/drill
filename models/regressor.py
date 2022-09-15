@@ -47,7 +47,7 @@ class RegressorHead(nn.Module):
         #self.dropout = nn.Dropout(p=dropout_prob)
         self.dropout_prob = dropout_prob
         self.weights = self._build_mlp(input_size, reg_layers)
-        self.output = nn.Linear(self.reg_layers[-1], 4)
+        self.output = nn.Linear(self.reg_layers[-1], n_classes)
         #self.sine = SineOutput(n_classes, use_cuda)
 
     def _build_mlp(self, input_size, reg_layers):
