@@ -19,8 +19,8 @@ from train.train_utils import RunningAvgQueue
 CROSS_ENTROPY = nn.CrossEntropyLoss()
 
 def get_loss(y_hat, y):
-    #loss = CROSS_ENTROPY(y_hat, y)
-    loss = CROSS_ENTROPY(y_hat.flatten(0, 1), y.flatten(0, 1))
+    loss = CROSS_ENTROPY(y_hat, y)
+    #loss = CROSS_ENTROPY(y_hat.flatten(0, 1), y.flatten(0, 1))
     return loss
 
 def get_acc(y_hat, y):
@@ -102,6 +102,9 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             use_cuda=trn_cfg["optimization"]["cuda"],
             strict=False
         )
+    if trn_cfg["model"]["freeze"]:
+        model.freeze_weights_for_cls()
+
     optimizer = torch.optim.Adam(model.parameters(), lr=float(trn_cfg["optimization"]["lr"]))
     n_params = get_n_params(model)
     print(f"Parameters: {n_params}")
@@ -152,9 +155,9 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             cls = cls.to(device)
             sig_cls = x["sig_label"].to(device)
             pos = x["pos"].to(device).squeeze(-1)
-            mask= x["mask"]
+            mask = x["mask"]
 
-            if i == 0 and j == 0:
+            """if i == 0 and j == 0:
                 for k in range(signal.shape[0]):
                     plot = trn_data.plot_batch(
                         signal[k].cpu(),
@@ -162,17 +165,16 @@ def train(trn_cfg_path: str, model_cfg_path: str):
                         mask[k].cpu(),
                         drop_zero=False
                     )
-                    run.log({"signal": wandb.Image(plot)})
+                    run.log({"signal": wandb.Image(plot)})"""
 
 
             # need [batch size, chunks, channels, chunk size]
             signal = torch.permute(signal,[0, 1, 3, 2])
-
             optimizer.zero_grad()
             y_hat = model(signal, pos=pos)
 
 
-            loss = get_loss(y_hat, sig_cls.squeeze(-1))
+            loss = get_loss(y_hat, cls.squeeze(-1))
 
 
             # Implement backward pass, zero gradient etc...
@@ -217,6 +219,7 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         avg_val_loss = 0
         avg_val_acc = 0
         val_cntr = 0
+
         for x, cls in val_pbar:
 
             signal = x["signal"].to(device)
@@ -228,11 +231,10 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             signal = torch.permute(signal, [0, 1, 3, 2])
 
             y_hat = model(signal, pos=pos)
-            val_loss = get_loss(y_hat, sig_cls.squeeze(-1)).detach()
+            val_loss = get_loss(y_hat, cls.squeeze(-1)).detach()
 
             val_acc = get_acc(y_hat, sig_cls)
             avg_val_acc += val_acc
-
 
 
             avg_val_loss += val_loss

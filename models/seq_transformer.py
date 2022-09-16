@@ -22,11 +22,11 @@ class SeqTransformer(nn.Module):
 
     ):
         super(SeqTransformer, self).__init__()
-        self.encoder = conv_encoder
+        #self.encoder = conv_encoder
         self.transformer = transformer
         self.head = head
         self.is_classifer = True if isinstance(head, ClassifierHead) else False
-        self.mask_token = nn.Embedding(1, dim)
+        #self.mask_token = nn.Embedding(1, dim)
         self.cls_token = nn.Embedding(1, dim)
         self.pos_embed = nn.Embedding(max_len + 2, dim, padding_idx=0)
         self.linear = nn.Linear(16, dim)
@@ -38,6 +38,19 @@ class SeqTransformer(nn.Module):
         else:
             self.device = torch.device('cpu')
 
+    def freeze_weights_for_cls(self):
+
+        for param in self.transformer.parameters():
+            param.requires_grad = False
+
+        for param in self.linear.parameters():
+            param.requires_grad = False
+
+        for param in self.cls_token.parameters():
+            param.requires_grad = False
+
+        for param in self.pos_embed.parameters():
+            param.requires_grad = False
 
     def forward(self, seq: torch.Tensor, pos: Optional[torch.Tensor] = None, mask: Optional[torch.Tensor] = None):
         """
@@ -75,7 +88,7 @@ class SeqTransformer(nn.Module):
         h = self.transformer(h)
 
         if self.is_classifer:
-            output = self.head(h[:, 1:, :])
+            output = self.head(h[:, 0, :])
         else:
             output = self.head(h)
         return output

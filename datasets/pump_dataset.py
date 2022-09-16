@@ -132,9 +132,9 @@ class SelfSupervisedPumpDataset(PumpDataset):
             ctrl_fpath: str,
             data_dir: str,
             chunk_length: int = 16,
-            rand_chunk_rate: float = 0.2,
             mask_prob: float = 0.15,
             transform: Optional[Callable] = None,
+            rand_chunk_rate: Optional[float] = 0.2,
             max_seq_len: int = 512
     ):
 
