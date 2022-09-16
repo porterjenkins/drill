@@ -26,9 +26,11 @@ class SeqTransformer(nn.Module):
         self.transformer = transformer
         self.head = head
         self.is_classifer = True if isinstance(head, ClassifierHead) else False
-        self.mask_token = nn.Embedding(1, seq_len)
+        self.mask_token = nn.Embedding(1, dim)
         self.cls_token = nn.Embedding(1, dim)
         self.pos_embed = nn.Embedding(max_len + 2, dim, padding_idx=0)
+        self.linear = nn.Linear(16, dim)
+
 
         if use_cuda:
             self = self.cuda()
@@ -46,13 +48,18 @@ class SeqTransformer(nn.Module):
         :return:
         """
 
-        if mask is not None:
+        """if mask is not None:
             h_mask = self.mask_token(torch.zeros(1).long().to(self.device))
             mask_idx = torch.where(mask)
-            seq[mask_idx[0], mask_idx[1], :, :] = h_mask
+            seq[mask_idx[0], mask_idx[1], :, :] = h_mask"""
         # CNN encoding
-        h = self.encoder(seq)
-        #h = self.linear(seq).squeeze(2)
+        #h = self.encoder(seq)
+        h = self.linear(seq).squeeze(2)
+
+        """if mask is not None:
+            h_mask = self.mask_token(torch.zeros(1).long().to(self.device))
+            mask_idx = torch.where(mask)
+            h[mask_idx[0], mask_idx[1], :] = h_mask"""
 
         # append cls token
         bs = seq.shape[0]

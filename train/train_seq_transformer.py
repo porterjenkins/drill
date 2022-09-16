@@ -14,11 +14,12 @@ from utils import get_yaml_cfg, get_n_params
 from train.train_utils import get_sine_from_theta
 
 
-def calculate_masked_loss(theta_hat, theta, mask):
-    y_for_loss = get_masked_tensor(mask, theta)
-    y_hat_for_loss = get_masked_tensor(mask, theta_hat)
+def calculate_masked_loss(y_hat, y, mask):
+    #y_for_loss = get_masked_tensor(mask, y)
+    #y_hat_for_loss = get_masked_tensor(mask, y_hat)
 
-    loss = torch.norm(y_for_loss - y_hat_for_loss, p=2, dim=-1)
+    loss = torch.norm(y.squeeze(2) - y_hat, p=2, dim=-1)
+    #loss = torch.norm(y_for_loss.squeeze(2) - y_hat_for_loss, p=2, dim=-1)
 
     return torch.mean(loss)
 
@@ -31,7 +32,7 @@ def init_chkp_dir(chkp, run_name):
 
     return run_dir
 
-def plot_batch_pred(signal, pred, mask, k=10, figsize=(12, 5)):
+def plot_batch_pred(signal, pred, mask, k=10, figsize=(12, 5), aux_signal=None):
     bs = signal.shape[0]
     fig, ax = plt.subplots(nrows=bs, ncols=1, figsize=figsize)
     signal = torch.permute(signal, [0, 1, 3, 2]).squeeze(-1)
@@ -40,6 +41,7 @@ def plot_batch_pred(signal, pred, mask, k=10, figsize=(12, 5)):
         batch_gt = signal[b, :k]
         batch_mask = mask[b, :k].squeeze(-1)
         batch_pred = pred[b, :k]
+        batch_aux = aux_signal[b, :k]
 
         assert (batch_gt.shape[0] == batch_mask.shape[0]) and (batch_gt.shape[0] == batch_pred.shape[0])
         n_chunk, chunk_size = batch_gt.shape
@@ -49,13 +51,19 @@ def plot_batch_pred(signal, pred, mask, k=10, figsize=(12, 5)):
         for i in range(batch_gt.shape[0]):
             sig_chunk = batch_gt[i]
             pred_chunk = batch_pred[i]
+            aux_chunk = batch_aux[i]
 
             x = torch.arange(start_idx, start_idx+chunk_size)
-            if batch_mask[i] == 0.0:
+            ax[b].plot(x, aux_chunk, c='blue', alpha=0.7, linestyle='--')
+            ax[b].plot(x, sig_chunk, c='g')
+            ax[b].plot(x, pred_chunk, c='r', linestyle='--')
+
+            """if batch_mask[i] == 0.0:
                 ax[b].plot(x, sig_chunk, c='g')
             else:
                 ax[b].plot(x, sig_chunk, c='gray', linestyle='-.', alpha=0.7)
-                ax[b].plot(x, pred_chunk, c='r', linestyle='--')
+
+            ax[b].plot(x, pred_chunk, c='r', linestyle='--')"""
 
             start_idx += chunk_size
     return fig
@@ -191,7 +199,8 @@ def train(trn_cfg_path: str, model_cfg_path: str):
                     out_signal.detach().cpu(),
                     y_hat[:, 1:, :].detach().cpu(),
                     mask.detach().cpu(),
-                    k=50
+                    k=50,
+                    aux_signal=signal.detach().cpu().squeeze(2)
                 )
                 run.log({"train/prediction": wandb.Image(fig)})
 
@@ -261,7 +270,8 @@ def train(trn_cfg_path: str, model_cfg_path: str):
                     out_signal.detach().cpu(),
                     y_hat[:, 1:, :].detach().cpu(),
                     mask.detach().cpu(),
-                    k=50
+                    k=50,
+                    aux_signal=signal.detach().cpu().squeeze(2)
                 )
                 run.log({"val/prediction": wandb.Image(fig)})
 

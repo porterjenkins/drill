@@ -257,9 +257,9 @@ class SelfSupervisedPumpDataset(PumpDataset):
             y_pred = sine(x, theta_i[0], theta_i[1], theta_i[2], theta_i[3])
             theta[i] = theta_i
             y_sine[i] = y_pred
-            #plt.plot(y, c='blue')
-            #plt.plot(y_pred, c='red')
-            #plt.show()
+            plt.plot(y, c='blue')
+            plt.plot(y_pred, c='red')
+            plt.show()
         return torch.tensor(theta), torch.tensor(y_sine)
 
     def __getitem__(self, idx):
@@ -287,14 +287,17 @@ class SelfSupervisedPumpDataset(PumpDataset):
         pos = torch.arange(1, n_chunks+2).long()
         #pos = self.calc_encoded_positions(1, n_chunks, 512)
         # denoiuse
-        #n, s, c = signal.shape
-        #eps =  torch.randn((n, s, c)) / 10
-        #signal += eps
+
+        out_signal = signal.clone().detach()
+
+        n, s, c = signal.shape
+        eps =  torch.randn((n, s, c)) / 10
+        signal += eps
 
         x = {
                 "signal": signal,
                 "mask": mask,
-                "out_signal": signal.clone().detach(),
+                "out_signal": out_signal,
                 "pos": pos,
                 "sig_label": sig_label,
                 #"theta": theta
