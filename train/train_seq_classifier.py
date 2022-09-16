@@ -12,6 +12,7 @@ import numpy as np
 from datasets.pump_dataset import SelfSupervisedPumpDataset
 from datasets.collate_fn import collate_padded
 from models.seq_transformer import build_cls
+from models.model_utils import load_model_chkp
 from utils import get_yaml_cfg, get_n_params
 from train.train_utils import RunningAvgQueue
 
@@ -94,6 +95,13 @@ def train(trn_cfg_path: str, model_cfg_path: str):
     )
 
     model = build_cls(model_cfg, use_cuda=trn_cfg["optimization"]["cuda"])
+    if trn_cfg["model"]["weights"] is not None:
+        model = load_model_chkp(
+            model=model,
+            chkp_path=trn_cfg["model"]["weights"],
+            use_cuda=trn_cfg["optimization"]["cuda"],
+            strict=False
+        )
     optimizer = torch.optim.Adam(model.parameters(), lr=float(trn_cfg["optimization"]["lr"]))
     n_params = get_n_params(model)
     print(f"Parameters: {n_params}")
