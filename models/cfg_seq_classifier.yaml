@@ -1,8 +1,8 @@
 meta:
-  feat_size: 512
-  seq_len: 16
+  feat_size: 128
+  seq_len: 1024
   mask_prob: 0.15
-  max_len: 256
+  max_len: 1
 encoder:
   n_channels: 1
 transformer:

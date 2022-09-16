@@ -4,7 +4,7 @@ wandb:
   group: classification
   name: classifier-test # can name wandb run
 model:
-  weights: "../train/chkp/classifier-test/best.pt"
+  weights: "../train/chkp/ae-classifier/best.pt"
 dataset:
   ctrl_file: '/home/porter/code/drill/Preprocessing/key_test_08-25-22.csv'
   data_dir: '/home/porter/code/drill/Preprocessing/Segments_Labeled_08-25-22'

@@ -11,7 +11,7 @@ import numpy as np
 
 from datasets.pump_dataset import SelfSupervisedPumpDataset
 from datasets.collate_fn import collate_padded
-from models.seq_transformer import build_cls
+from models.lstm_cls import build_cls
 from models.model_utils import load_model_chkp
 from utils import get_yaml_cfg, get_n_params
 from train.train_utils import RunningAvgQueue
@@ -95,7 +95,7 @@ def train(trn_cfg_path: str, model_cfg_path: str):
     )
 
     model = build_cls(model_cfg, use_cuda=trn_cfg["optimization"]["cuda"])
-    if trn_cfg["model"]["weights"] is not None:
+    """if trn_cfg["model"]["weights"] is not None:
         model = load_model_chkp(
             model=model,
             chkp_path=trn_cfg["model"]["weights"],
@@ -103,7 +103,9 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             strict=False
         )
     if trn_cfg["model"]["freeze"]:
-        model.freeze_weights_for_cls()
+        model.freeze_weights_for_cls()"""
+
+
 
     optimizer = torch.optim.Adam(model.parameters(), lr=float(trn_cfg["optimization"]["lr"]))
     n_params = get_n_params(model)
@@ -115,7 +117,8 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         chunk_length=model_cfg["meta"]["seq_len"],
         rand_chunk_rate=trn_cfg["dataset"]["rand_chunk_prob"],
         mask_prob=model_cfg["meta"]["mask_prob"],
-        max_seq_len=model_cfg["meta"]["max_len"]
+        max_seq_len=model_cfg["meta"]["max_len"],
+        randomize=True
     )
     trn_loader = DataLoader(
         trn_data,
@@ -131,7 +134,8 @@ def train(trn_cfg_path: str, model_cfg_path: str):
         chunk_length=model_cfg["meta"]["seq_len"],
         rand_chunk_rate=trn_cfg["dataset"]["rand_chunk_prob"],
         mask_prob=model_cfg["meta"]["mask_prob"],
-        max_seq_len=model_cfg["meta"]["max_len"]
+        max_seq_len=model_cfg["meta"]["max_len"],
+        randomize=False
     )
     val_loader = DataLoader(
         val_data,
@@ -157,7 +161,7 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             pos = x["pos"].to(device).squeeze(-1)
             mask = x["mask"]
 
-            """if i == 0 and j == 0:
+            if i == 0 and j == 0:
                 for k in range(signal.shape[0]):
                     plot = trn_data.plot_batch(
                         signal[k].cpu(),
@@ -165,13 +169,14 @@ def train(trn_cfg_path: str, model_cfg_path: str):
                         mask[k].cpu(),
                         drop_zero=False
                     )
-                    run.log({"signal": wandb.Image(plot)})"""
+                    run.log({"signal": wandb.Image(plot)})
 
 
             # need [batch size, chunks, channels, chunk size]
-            signal = torch.permute(signal,[0, 1, 3, 2])
+            #signal = torch.permute(signal,[0, 1, 3, 2])
+            signal = signal.squeeze(1).squeeze(1)
             optimizer.zero_grad()
-            y_hat = model(signal, pos=pos)
+            y_hat = model(signal)
 
 
             loss = get_loss(y_hat, cls.squeeze(-1))
@@ -228,9 +233,10 @@ def train(trn_cfg_path: str, model_cfg_path: str):
             sig_cls = x["sig_label"].to(device)
 
             # need [batch size, chunks, channels, chunk size]
-            signal = torch.permute(signal, [0, 1, 3, 2])
+            #signal = torch.permute(signal, [0, 1, 3, 2])
 
-            y_hat = model(signal, pos=pos)
+            signal = signal.squeeze(1).squeeze(1)
+            y_hat = model(signal)
             val_loss = get_loss(y_hat, cls.squeeze(-1)).detach()
 
             val_acc = get_acc(y_hat, sig_cls)

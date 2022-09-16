@@ -17,9 +17,9 @@ class PumpDataset(Dataset):
     """Pump dataset."""
 
     idx_to_cls = {
-        1: "child",
+        1: "man",
         2: "woman",
-        3: "man"
+        3: "child"
     }
 
     def __init__(self, ctrl_fpath: str, data_dir: str, transform=None):
@@ -112,6 +112,7 @@ class PumpDataset(Dataset):
             header=None,
             names=["time", "dt", "h1", "h2", "h3", "angle", "angle_2", "matlab_ts", "user", "cls", "pred"]
         )
+        c = signal['cls'].values
         signal = signal[["angle"]].values
 
         label = self.label_data[idx] - 1 # 0 index labels
@@ -135,7 +136,8 @@ class SelfSupervisedPumpDataset(PumpDataset):
             mask_prob: float = 0.15,
             transform: Optional[Callable] = None,
             rand_chunk_rate: Optional[float] = 0.2,
-            max_seq_len: int = 512
+            max_seq_len: int = 512,
+            randomize=False
     ):
 
         super(SelfSupervisedPumpDataset, self).__init__(
@@ -147,6 +149,7 @@ class SelfSupervisedPumpDataset(PumpDataset):
         self.rand_chunk_rate = rand_chunk_rate
         self.mask_prob = mask_prob
         self.max_seq_len = max_seq_len
+        self.randomize = randomize
 
     @staticmethod
     def get_chunks(signal, chunk_length, rand_pct=0.1):
@@ -268,7 +271,10 @@ class SelfSupervisedPumpDataset(PumpDataset):
 
         if n_chunks > self.max_seq_len:
             # random start
-            start_idx = np.random.randint(0, n_chunks - self.max_seq_len)
+            if self.randomize:
+                start_idx = np.random.randint(0, n_chunks - self.max_seq_len)
+            else:
+                start_idx = 0
             end_idx = start_idx + self.max_seq_len
             signal = signal[start_idx:end_idx, :, :]
             n_chunks = self.max_seq_len
